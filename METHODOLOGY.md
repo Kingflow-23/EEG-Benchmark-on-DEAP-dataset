@@ -5,15 +5,15 @@
 The benchmark does not preprocess data itself. `src/preprocessing/` is the only
 route from DEAP's Python files to model input. It reproduces the reference
 windowing rule (256 samples, step 16, strict end bound), uses the first 32 EEG
-channels, and computes five FFT magnitude bands (4–8, 8–12, 12–16, 16–25,
-25–45 Hz). The result is a 160-value, channel-major vector. Continuous DEAP
-labels remain in `[Valence, Arousal, Dominance, Liking]` order; the first two are
-binarized independently at 5 by default.
+channels, and computes five FFT magnitude bands (4-8, 8-12, 12-16, 16-25,
+25-45 Hz). The result is a 160-value, channel-major vector. Continuous DEAP
+labels remain in `[Valence, Arousal, Dominance, Liking]` order; the first two
+are binarized independently at 5 by default.
 
 The extractor intentionally matches the reference implementation where
 scientifically unusual behavior affects comparability: the three-second
 pre-stimulus baseline is retained by default; the final exactly aligned window
-is omitted by a strict `<` bound; and “band power” is a sum of FFT magnitudes,
+is omitted by a strict `<` bound; and "band power" is a sum of FFT magnitudes,
 not squared physical power. These choices are centralized in `src/config.py`
 and `src/preprocessing/bandpower.py` rather than reimplemented by models.
 
@@ -56,10 +56,10 @@ and the zero-worker neural DataLoader. CUDA deterministic mode is enabled.
 `--split all` applies the same model configuration to all three strategies and
 keeps their metrics separate. A model qualifies for the robustness ranking only
 when it succeeds on both `subject` and `trial`. Its primary robustness score is
-the mean of those two macro-F1 values; the lower of the two breaks ties, favoring
-consistent rather than split-specialized performance. The `repo` result is
-shown as a reproduction diagnostic but never contributes to selection because
-its overlapping windows leak signal across train and test.
+the mean of those two macro-F1 values; the lower of the two breaks ties,
+favoring consistent rather than split-specialized performance. The `repo`
+result is shown as a reproduction diagnostic but never contributes to selection
+because its overlapping windows leak signal across train and test.
 
 ## Fair-training contract
 
@@ -71,11 +71,10 @@ Test rows never affect scaling, optimization, or epoch selection.
 
 Neural architectures share the production trainer's Adam optimizer (learning
 rate `1e-3`, weight decay `1e-4`), cross-entropy loss, batch size 256, and
-ReduceLROnPlateau schedule. They also share 50 maximum epochs, patience 7, a 15%
-train-only validation fraction, and best-validation-loss restoration. These
-values come from `src/config.py`. This is a controlled architecture comparison,
-not per-model hyperparameter optimization. Optional third-party estimators retain
-documented library defaults plus a common seed and explicitly declared capacity.
+ReduceLROnPlateau schedule. They also share 50 maximum epochs, patience 7, a
+15% train-only validation fraction, and best-validation-loss restoration.
+These values come from `src/config.py`. This is a controlled architecture
+comparison, not per-model hyperparameter optimization.
 
 ## Candidate rationale
 
@@ -84,17 +83,17 @@ same hypothesis do not make the comparison more informative.
 
 | Registry key | Architecture | Why retained | Main limitation |
 |---|---|---|---|
-| `logistic_regression` | StandardScaler → linear two-class logistic head | Interpretable capacity floor and probability-native linear baseline. | Cannot learn nonlinear feature interactions. |
+| `logistic_regression` | StandardScaler -> linear two-class logistic head | Interpretable capacity floor and probability-native linear baseline. | Cannot learn nonlinear feature interactions. |
 | `extra_trees` | 300 fully randomized trees with balanced class weights | One strong nonlinear bagging representative for engineered EEG features. | Large artifact; probabilities from vote fractions can be poorly calibrated. |
-| `feature_mlp` | `160→256→128→64→2`; BatchNorm, ReLU, dropout 0.3 after each hidden layer | Natural neural model for a flat feature vector; topology matches the active downstream pipeline. | No explicit channel/band structure. |
-| `band_electrode_cnn` | Reshape to `(5 bands, 32 electrodes)`; two kernel-3 Conv1D blocks `5→32→64`; global average pool; two-logit head | Tests whether local patterns along the declared electrode order help; topology matches the active downstream pipeline. | Electrode list order is not physical scalp distance, so convolutional locality is only an ordering prior. |
-| `fft_lstm` | Reshape to `(160 steps, 1)`; bidirectional LSTM-128, then LSTM `256→256→64→64→32`; dropout `.6/.6/.6/.4/.4`; `32→16→2` head | Published FFT-feature recurrent architecture, necessary to reproduce and compare the incumbent model. | The 160 simultaneous channel-band values are not time; it is slow, over-parameterized (~789k parameters), and semantically awkward. |
+| `xgboost` | 500 depth-6 boosted trees, learning rate 0.05 | One mature gradient-boosting representative, often strong on tabular features. | Heavier CPU cost than the tree baseline. |
+| `feature_mlp` | `160->256->128->64->2`; BatchNorm, ReLU, dropout 0.3 after each hidden layer | Natural neural model for a flat feature vector; topology matches the active downstream pipeline. | No explicit channel/band structure. |
+| `band_electrode_cnn` | Reshape to `(5 bands, 32 electrodes)`; two kernel-3 Conv1D blocks `5->32->64`; global average pool; two-logit head | Tests whether local patterns along the declared electrode order help; topology matches the active downstream pipeline. | Electrode list order is not physical scalp distance, so convolutional locality is only an ordering prior. |
+| `fft_lstm` | Reshape to `(160 steps, 1)`; bidirectional LSTM-128, then LSTM `256->256->64->64->32`; dropout `.6/.6/.6/.4/.4`; `32->16->2` head | Published FFT-feature recurrent architecture, necessary to reproduce and compare the incumbent model. | The 160 simultaneous channel-band values are not time; it is slow, over-parameterized, and semantically awkward. |
 | `ft_transformer` | Per-feature scalar tokenization; two 16-wide, four-head Transformer encoder layers; mean pooling; two-logit head | One modern tabular-attention hypothesis that preserves feature identity without invented temporal or spatial geometry. | Quadratic attention over 160 tokens and higher compute than the MLP. |
-| `xgboost` (optional) | 500 depth-6 boosted trees, learning rate 0.05 | One mature gradient-boosting representative, often strong on tabular features. | Extra dependency and substantial CPU time. |
-| `tabpfn` (optional) | Installed TabPFN classifier | Only foundation-model representative; meaningfully different pretrained prior. | Release-dependent sample/GPU limits, model downloads, memory, and inference cost. |
+| `tabicl` | TabICL classifier with shared CUDA/CPU policy | In-context learner for tabular features with a qualitatively different inference strategy. | Sensitive to memory and version constraints of the installed package. |
 
-Optional packages are imported lazily. Missing candidates are recorded as
-`skipped`, never silently substituted.
+This benchmark suite is closed and required. Every listed candidate must be
+available in the benchmark environment and is expected to run.
 
 ### Redundancy audit
 
@@ -107,7 +106,7 @@ The following candidates were removed from the standard suite:
   production MLP;
 - spectral LSTM/GRU/TCN and channel CNN-Attention/CNN-LSTM ports: speculative
   reinterpretations superseded by the actual production CNN and reference LSTM;
-- LightGBM and CatBoost: duplicate the optional boosted-tree hypothesis already
+- LightGBM and CatBoost: duplicate the boosted-tree hypothesis already
   represented by XGBoost;
 - TabNet: another tabular deep model, less distinct once FT-Transformer and the
   production MLP are present.
@@ -169,21 +168,15 @@ lift as deterministic tie-breakers. `summary.json` stores the rule.
 DEAP provides one rating for an entire trial, so every window inherits a noisy,
 constant label. Results depend strongly on split choice. A one-off run measures
 architecture performance for one seed, not uncertainty; publication-quality
-work should repeat several seeds and report dispersion. Sample-limited runs are
-useful for feasibility testing but are labeled by exact train/test counts and
-must not be compared with full-data runs as if equivalent.
+work should repeat several seeds and report dispersion.
 
 ## Extension checklist
 
-A new candidate belongs in `src/models/registry.py` only when it:
+A new candidate belongs in `src/models/model_registry.py` only when it:
 
 1. consumes the existing `(n, 160)` feature matrix without alternate preprocessing;
 2. implements `fit` and returns finite `(n, 2)` rows from `predict_proba`;
 3. fits every learned transformation exclusively on training rows;
 4. accepts the run seed or documents why determinism is unavailable;
 5. can be serialized with enough state for later probability inference;
-6. records dependency, computational, sample-size, and semantic limitations.
-
-No model-specific evaluation branch should be added. If a proposed architecture
-requires raw signals, a scalp grid, or sequences of multiple windows, it belongs
-in a separately named benchmark with a separately documented data contract.
+6. records computational, sample-size, and semantic limitations.

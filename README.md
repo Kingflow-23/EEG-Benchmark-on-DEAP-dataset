@@ -31,8 +31,8 @@ python -m pip install -r requirements.txt
 python -m src.benchmark --prepare --split subject
 ```
 
-The command extracts/caches features, builds the requested split, trains the six
-core architectures twice (once per target), and writes checkpoints,
+The command extracts/caches features, builds the requested split, trains the
+full required suite twice (once per target), and writes checkpoints,
 probabilities, metrics, plots, CSV/JSON comparisons, and `REPORT.md` under
 `output/BENCHMARKS/`.
 
@@ -42,11 +42,8 @@ Useful alternatives:
 # Fast end-to-end validation
 python -m src.benchmark --prepare --split subject --subjects 1 2 3 8 --smoke
 
-# Explicit suite, reusing prepared data
+# Explicit subset, reusing prepared data
 python -m src.benchmark --split subject --models logistic_regression feature_mlp band_electrode_cnn
-
-# Try optional installed libraries; unavailable ones are reported as skipped
-python -m src.benchmark --split subject --include-optional
 
 # Run every split and produce a leak-free cross-split robustness ranking
 python -m src.benchmark --prepare --split all
@@ -59,10 +56,10 @@ python -m src.benchmark --list-models
 must not be interpreted as generalization performance. `subject` is therefore
 the command-line default when `--split` is omitted.
 
-When using `--subjects` with the `subject` split, include at least one configured
-held-out participant and one non-held-out participant; otherwise one side of the
-split is empty. `--smoke` limits rows for integration testing and is not a
-publication-quality result.
+When using `--subjects` with the `subject` split, include at least one
+configured held-out participant and one non-held-out participant; otherwise
+one side of the split is empty. `--smoke` limits rows for integration testing
+and is not a publication-quality result.
 
 ## Model groups
 
@@ -71,16 +68,16 @@ hypothesis:
 
 - `logistic_regression`: scaled linear baseline.
 - `extra_trees`: nonlinear bagged-tree baseline.
-- `feature_mlp`: `160→256→128→64→2` feedforward feature network.
-- `band_electrode_cnn`: CNN using five bands as input channels
-  and 32 electrodes as the convolution axis.
+- `xgboost`: boosted-tree tabular baseline.
+- `feature_mlp`: `160->256->128->64->2` feedforward feature network.
+- `band_electrode_cnn`: CNN using five bands as input channels and 32
+  electrodes as the convolution axis.
 - `fft_lstm`: published recurrent stack over FFT features, retained for
-  reproducibility despite its artificial
-  interpretation of 160 features as 160 steps.
+  reproducibility despite its artificial interpretation of 160 features as 160
+  steps.
 - `ft_transformer`: modern attention-based tabular representative.
+- `tabicl`: in-context tabular learner using the shared CUDA/CPU policy.
 
-`xgboost` and `tabpfn` are optional representatives for gradient boosting and
-tabular foundation models. Missing optional packages are reported as skipped.
 See the methodology for layer details, limitations, and the redundancy audit.
 
 ## Multi-split robustness
