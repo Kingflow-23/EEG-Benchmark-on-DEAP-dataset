@@ -40,6 +40,7 @@ from ..config import (
     FEATURES_PATH,
     LABEL_INDEX,
     N_BANDS,
+    N_SUBJECTS,
     N_CHANNELS,
     N_FEATURES,
     N_TRIALS,
