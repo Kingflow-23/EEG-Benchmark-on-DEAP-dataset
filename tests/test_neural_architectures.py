@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.models.torch_tabular import _make_network
+from src.models.deep_architecture import _make_network
 
 
 torch = pytest.importorskip("torch")
