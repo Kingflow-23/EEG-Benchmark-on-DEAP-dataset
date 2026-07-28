@@ -20,15 +20,26 @@ def test_core_sklearn_models_expose_probabilities():
 
 def test_curated_neural_architectures_are_registered():
     names = set(available_models())
-    assert {"feature_mlp", "band_electrode_cnn", "fft_lstm", "ft_transformer"} <= names
+    assert names == {
+        "logistic_regression",
+        "extra_trees",
+        "xgboost",
+        "feature_mlp",
+        "band_electrode_cnn",
+        "fft_lstm",
+        "ft_transformer",
+        "tabicl",
+    }
 
 
 def test_standard_suite_contains_only_curated_models():
     assert available_models() == [
         "logistic_regression",
         "extra_trees",
+        "xgboost",
         "feature_mlp",
         "band_electrode_cnn",
         "fft_lstm",
         "ft_transformer",
+        "tabicl",
     ]
