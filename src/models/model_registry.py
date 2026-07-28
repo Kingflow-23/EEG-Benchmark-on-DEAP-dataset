@@ -93,7 +93,7 @@ def _tabpfn(seed: int) -> Any:
 
 def _torch(architecture: str, seed: int) -> Any:
     """Create one neural architecture through the shared PyTorch adapter."""
-    from .torch_tabular import TorchTabularClassifier
+    from .deep_architecture import TorchTabularClassifier
     return TorchTabularClassifier(architecture=architecture, random_state=seed)
 
 
