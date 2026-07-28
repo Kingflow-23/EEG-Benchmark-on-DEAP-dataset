@@ -1,9 +1,11 @@
 """Command-line orchestration for the DEAP architecture benchmark.
 
-This module connects the existing feature/split pipeline to the model registry,
-shared evaluator, and report writer. A benchmark run trains each requested
-architecture twice: once for binary Valence and once for binary Arousal. It does
-not contain preprocessing, model-specific metrics, or target-specific tuning.
+This module connects the feature/split pipeline to the model registry, shared
+evaluator, workflow tracker, and report writer. A benchmark run trains each
+requested architecture twice: once for binary Valence and once for binary
+Arousal. It also streams structured progress updates and progress bars for the
+per-model loop, but it does not contain preprocessing, model-specific metrics,
+or target-specific tuning.
 
 The primary entry point is ``python -m src.benchmark``. Programmatic callers can
 use :func:`run_benchmark` after preparing a split with
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import platform
 import sys
 import time
@@ -23,6 +26,14 @@ from pathlib import Path
 import joblib
 import numpy as np
 
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover - fallback for minimal environments
+
+    def tqdm(iterable, **kwargs):
+        return iterable
+
+
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from src import config
@@ -31,6 +42,7 @@ if __package__ in (None, ""):
     from src.preprocessing import build_dataset, extract_all, load_split
     from src.reporting import write_cross_split_reports, write_reports
     from src.utils import model_size_bytes, safe_name, seed_everything
+    from src.workflow import WorkflowTracker, setup_logging
 else:
     from . import config
     from .evaluation import evaluate_probabilities, save_evaluation_artifacts
@@ -38,6 +50,7 @@ else:
     from .preprocessing import build_dataset, extract_all, load_split
     from .reporting import write_cross_split_reports, write_reports
     from .utils import model_size_bytes, safe_name, seed_everything
+    from .workflow import WorkflowTracker, setup_logging
 
 
 def run_benchmark(
@@ -48,8 +61,13 @@ def run_benchmark(
     max_train_samples: int | None = None,
     max_test_samples: int | None = None,
     fail_fast: bool = False,
+    tracker: WorkflowTracker | None = None,
 ) -> dict:
     """Train and evaluate each architecture for both affective targets.
+
+    Structured workflow events are emitted for experiment start, training
+    completion, evaluation completion, skip/failure paths, and cumulative
+    progress. Neural models also show epoch-level progress via ``tqdm``.
 
     Parameters
     ----------
@@ -91,20 +109,67 @@ def run_benchmark(
     selected_meta_test = meta_test[test_idx]
     run_config = _run_config(split, model_names, seed, len(train_idx), len(test_idx))
     records = []
+    if tracker is not None:
+        tracker.log(
+            logging.INFO,
+            "split_loaded",
+            split=split,
+            n_train=len(train_idx),
+            n_test=len(test_idx),
+            models=model_names,
+        )
+    total_experiments = len(config.TARGETS) * len(model_names)
     for target_index, target in enumerate(config.TARGETS):
-        for model_name in model_names:
+        iterator = tqdm(
+            model_names,
+            total=len(model_names),
+            desc=f"{split}:{target}",
+            leave=False,
+            dynamic_ncols=True,
+        )
+        for model_name in iterator:
             run_dir = output / target / safe_name(model_name)
             record = {"target": target, "model": model_name, "status": "failed"}
             try:
+                if tracker is not None:
+                    tracker.log(
+                        logging.INFO,
+                        "experiment_started",
+                        split=split,
+                        target=target,
+                        model=model_name,
+                    )
+                if hasattr(iterator, "set_postfix_str"):
+                    iterator.set_postfix_str("training", refresh=False)
                 seed_everything(seed)
                 model, spec = create_model(model_name, seed)
                 record.update(family=spec.family, notes=spec.notes)
                 started = time.perf_counter()
                 model.fit(Xtr, ytr_all[:, target_index])
                 record["train_seconds"] = time.perf_counter() - started
+                if tracker is not None:
+                    tracker.log(
+                        logging.INFO,
+                        "model_trained",
+                        split=split,
+                        target=target,
+                        model=model_name,
+                        train_seconds=record["train_seconds"],
+                    )
+                if hasattr(iterator, "set_postfix_str"):
+                    iterator.set_postfix_str("evaluating", refresh=False)
                 started = time.perf_counter()
                 probabilities = model.predict_proba(Xte)
                 record["inference_seconds"] = time.perf_counter() - started
+                if tracker is not None:
+                    tracker.log(
+                        logging.INFO,
+                        "model_evaluation_completed",
+                        split=split,
+                        target=target,
+                        model=model_name,
+                        inference_seconds=record["inference_seconds"],
+                    )
                 metrics = evaluate_probabilities(
                     yte_all[:, target_index], probabilities
                 )
@@ -131,16 +196,54 @@ def run_benchmark(
                         json.dumps(history, indent=2), encoding="utf-8"
                     )
                 record["status"] = "ok"
+                if tracker is not None:
+                    tracker.log(
+                        logging.INFO,
+                        "experiment_completed",
+                        split=split,
+                        target=target,
+                        model=model_name,
+                        macro_f1=record.get("macro_f1"),
+                        roc_auc=record.get("roc_auc"),
+                    )
             except (ImportError, ModuleNotFoundError) as exc:
                 record.update(status="skipped", error=str(exc))
+                if tracker is not None:
+                    tracker.log(
+                        logging.WARNING,
+                        "experiment_skipped",
+                        split=split,
+                        target=target,
+                        model=model_name,
+                        error=str(exc),
+                    )
             except Exception as exc:
                 record["status"] = "failed"
                 record["error"] = f"{type(exc).__name__}: {exc}"
+                if tracker is not None:
+                    tracker.log(
+                        logging.ERROR,
+                        "experiment_failed",
+                        split=split,
+                        target=target,
+                        model=model_name,
+                        error=record["error"],
+                    )
                 if fail_fast:
                     raise
             records.append(record)
-            write_reports(output, records, run_config)
-    return write_reports(output, records, run_config)
+            write_reports(output, records, run_config, tracker=tracker)
+            if tracker is not None:
+                tracker.log(
+                    logging.INFO,
+                    "workflow_progress",
+                    completed=len(records),
+                    total=total_experiments,
+                    split=split,
+                    target=target,
+                    model=model_name,
+                )
+    return write_reports(output, records, run_config, tracker=tracker)
 
 
 def _stratified_limit(
@@ -241,7 +344,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Prepare data when requested, execute a run, and print its winners."""
+    """Prepare data when requested, execute a run, and print its winners.
+
+    The run also writes ``workflow.json``, ``workflow.jsonl``, and
+    ``workflow.log`` in the output directory.
+    """
     args = parse_args(argv)
     if args.list_models:
         print("\n".join(available_models(True)))
@@ -255,31 +362,57 @@ def main(argv: list[str] | None = None) -> int:
     # Run the scientifically useful estimates first so an interrupted long job
     # still leaves subject/trial results; the leaky reference split is last.
     splits = ["subject", "trial", "repo"] if args.split == "all" else [args.split]
-    if args.prepare:
-        extract_all(args.subjects, overwrite=args.overwrite)
-        for split in splits:
-            build_dataset(args.subjects, split, overwrite=args.overwrite)
     tag = datetime.now().strftime("%Y%m%d_%H%M%S")
     output = args.output or config.BENCHMARK_PATH / f"{args.split}_{tag}"
+    logger = setup_logging(output)
+    tracker = WorkflowTracker(output, run_name=f"{args.split}_{tag}", logger=logger)
+    tracker.log(
+        logging.INFO,
+        "workflow_started",
+        split=args.split,
+        models=models,
+        seed=args.seed,
+        prepare=args.prepare,
+    )
+    if args.prepare:
+        with tracker.stage(
+            "feature_extraction", subjects=args.subjects, overwrite=args.overwrite
+        ):
+            extract_all(args.subjects, overwrite=args.overwrite)
+        with tracker.stage(
+            "dataset_build", split_modes=splits, overwrite=args.overwrite
+        ):
+            for split in splits:
+                build_dataset(args.subjects, split, overwrite=args.overwrite)
     summaries = {}
+    cross_split = None
     for split in splits:
         split_output = output / split if args.split == "all" else output
-        summaries[split] = run_benchmark(
-            split,
-            models,
-            split_output,
-            args.seed,
-            args.max_train_samples,
-            args.max_test_samples,
-            args.fail_fast,
-        )
+        with tracker.stage("benchmark", split=split, output=str(split_output)):
+            summaries[split] = run_benchmark(
+                split,
+                models,
+                split_output,
+                args.seed,
+                args.max_train_samples,
+                args.max_test_samples,
+                args.fail_fast,
+                tracker=tracker,
+            )
     if args.split == "all":
-        cross_split = write_cross_split_reports(output, summaries)
+        with tracker.stage("cross_split_report"):
+            cross_split = write_cross_split_reports(output, summaries, tracker=tracker)
         print(json.dumps(cross_split["best_robust_model"], indent=2))
         print(f"Report: {output / 'CROSS_SPLIT_REPORT.md'}")
     else:
         print(json.dumps(summaries[args.split]["best_model"], indent=2))
         print(f"Report: {output / 'REPORT.md'}")
+    best_model = (
+        cross_split["best_robust_model"]
+        if args.split == "all"
+        else summaries[args.split]["best_model"]
+    )
+    tracker.finish(best_model=best_model)
     return 0
 
 
