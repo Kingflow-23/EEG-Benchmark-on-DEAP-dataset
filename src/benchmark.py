@@ -66,7 +66,7 @@ def run_benchmark(
     """Train and evaluate each architecture for both affective targets.
 
     Structured workflow events are emitted for experiment start, training
-    completion, evaluation completion, skip/failure paths, and cumulative
+    completion, evaluation completion, failure paths, and cumulative
     progress. Neural models also show epoch-level progress via ``tqdm``.
 
     Parameters
@@ -94,8 +94,7 @@ def run_benchmark(
 
     Notes
     -----
-    A missing optional dependency produces ``status='skipped'``. Other model
-    errors produce ``status='failed'`` unless ``fail_fast`` is true.
+    Model errors produce ``status='failed'`` unless ``fail_fast`` is true.
     """
     seed_everything(seed)
     X_train, y_train, _, X_test, y_test, meta_test = load_split(
@@ -206,17 +205,6 @@ def run_benchmark(
                         macro_f1=record.get("macro_f1"),
                         roc_auc=record.get("roc_auc"),
                     )
-            except (ImportError, ModuleNotFoundError) as exc:
-                record.update(status="skipped", error=str(exc))
-                if tracker is not None:
-                    tracker.log(
-                        logging.WARNING,
-                        "experiment_skipped",
-                        split=split,
-                        target=target,
-                        model=model_name,
-                        error=str(exc),
-                    )
             except Exception as exc:
                 record["status"] = "failed"
                 record["error"] = f"{type(exc).__name__}: {exc}"
@@ -323,7 +311,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--models", nargs="+", default=None, help="Registry names (default: core suite)"
     )
-    parser.add_argument("--include-optional", action="store_true")
     parser.add_argument(
         "--prepare",
         action="store_true",
@@ -354,7 +341,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(available_models(True)))
         return 0
     config.ensure_dirs()
-    models = args.models or available_models(args.include_optional)
+    models = args.models or available_models()
     if args.smoke:
         models = args.models or ["logistic_regression", "extra_trees", "feature_mlp"]
         args.max_train_samples = args.max_train_samples or 2000
