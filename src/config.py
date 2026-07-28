@@ -182,6 +182,10 @@ NEURAL_WEIGHT_DECAY = 1e-4
 NEURAL_PATIENCE = 7
 NEURAL_VALIDATION_FRACTION = 0.15
 
+# TabICL shares the same GPU/CPU choice across runs so the registry stays
+# deterministic and benchmark reports remain comparable.
+TABICL_USE_CUDA = True
+
 
 # --------------------------------------------------------------------------- #
 # Derived helpers
