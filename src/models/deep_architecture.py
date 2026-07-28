@@ -21,6 +21,14 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover - fallback for minimal environments
+
+    def tqdm(iterable, **kwargs):
+        return iterable
+
+
 from ..config import (
     NEURAL_BATCH_SIZE,
     NEURAL_EPOCHS,
@@ -115,7 +123,13 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
         y_val = torch.from_numpy(y_va).to(self.device_)
         best_loss, best_state, stale = float("inf"), None, 0
         self.history_ = []
-        for epoch in range(self.epochs):
+        epoch_iter = tqdm(
+            range(self.epochs),
+            desc=f"{self.architecture}:epochs",
+            leave=False,
+            dynamic_ncols=True,
+        )
+        for epoch in epoch_iter:
             self.model_.train()
             train_loss = 0.0
             for xb, yb in loader:
@@ -129,6 +143,12 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             with torch.no_grad():
                 val_loss = float(loss_fn(self.model_(x_val), y_val))
             scheduler.step(val_loss)
+            epoch_iter.set_postfix(
+                train_loss=f"{train_loss / len(x_tr):.4f}",
+                val_loss=f"{val_loss:.4f}",
+                lr=f"{optimizer.param_groups[0]['lr']:.2e}",
+                refresh=False,
+            )
             self.history_.append(
                 {
                     "epoch": epoch + 1,
