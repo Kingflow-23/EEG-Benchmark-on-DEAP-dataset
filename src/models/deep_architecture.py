@@ -81,6 +81,7 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
 
         torch.manual_seed(self.random_state)
         np.random.seed(self.random_state)
+        torch.backends.cudnn.benchmark = self.architecture == "fft_lstm"
         self.classes_ = np.unique(y)
         if not np.array_equal(self.classes_, np.array([0, 1])):
             raise ValueError(
@@ -104,8 +105,9 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             transformed_features=transformed.shape[1],
             device_name=(
                 "cuda"
-                if self.device == "auto" and torch.cuda.is_available()
-                else "cpu" if self.device == "auto" else self.device
+                if torch.cuda.is_available()
+                and (self.device == "auto" or self.device == "cuda")
+                else "cpu"
             ),
         )
         self.n_parameters_ = sum(
@@ -130,6 +132,7 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
         self.model_ = _make_network(self.architecture, transformed_features).to(
             self.device_
         )
+        use_cuda = self.device_.type == "cuda"
         optimizer = torch.optim.Adam(
             self.model_.parameters(),
             lr=self.learning_rate,
@@ -142,11 +145,16 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
         batch_size = self.batch_size
         if self.architecture == "ft_transformer":
             batch_size = min(batch_size, 32)
+        elif self.architecture == "fft_lstm":
+            # Keep the published architecture but make the training loop less
+            # memory-hungry so the first epoch starts making visible progress.
+            batch_size = min(batch_size, 16)
         loader = DataLoader(
             TensorDataset(torch.from_numpy(X), torch.from_numpy(y_tr)),
             batch_size=batch_size,
             shuffle=True,
             num_workers=0,
+            pin_memory=use_cuda,
             generator=torch.Generator().manual_seed(self.random_state),
         )
         x_val = torch.from_numpy(x_va).to(self.device_)
@@ -163,13 +171,28 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             for epoch in epoch_iter:
                 self.model_.train()
                 train_loss = 0.0
-                for xb, yb in loader:
+                scaler = torch.cuda.amp.GradScaler(enabled=use_cuda)
+                batch_iter = loader
+                if self.architecture == "fft_lstm":
+                    batch_iter = tqdm(
+                        loader,
+                        total=len(loader),
+                        desc=f"{self.architecture}:batches",
+                        leave=False,
+                        dynamic_ncols=True,
+                        position=1,
+                    )
+                for xb, yb in batch_iter:
                     xb, yb = xb.to(self.device_), yb.to(self.device_)
                     optimizer.zero_grad(set_to_none=True)
-                    loss = loss_fn(self.model_(xb), yb)
-                    loss.backward()
-                    optimizer.step()
+                    with torch.cuda.amp.autocast(enabled=use_cuda):
+                        loss = loss_fn(self.model_(xb), yb)
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
                     train_loss += float(loss) * len(xb)
+                if self.architecture == "fft_lstm" and hasattr(batch_iter, "close"):
+                    batch_iter.close()
                 self.model_.eval()
                 with torch.no_grad():
                     val_loss = float(loss_fn(self.model_(x_val), y_val))
@@ -199,17 +222,7 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
                     if stale >= self.patience:
                         break
         except torch.cuda.OutOfMemoryError:
-            if self.device_ != torch.device("cpu"):
-                torch.cuda.empty_cache()
-                self._fit_one_device(
-                    X=X,
-                    y_tr=y_tr,
-                    x_va=x_va,
-                    y_va=y_va,
-                    transformed_features=transformed_features,
-                    device_name="cpu",
-                )
-                return
+            torch.cuda.empty_cache()
             raise
         self.model_.load_state_dict(best_state)
 
