@@ -95,12 +95,39 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             random_state=self.random_state,
             stratify=y,
         )
-        self.device_ = torch.device(
-            "cuda"
-            if self.device == "auto" and torch.cuda.is_available()
-            else "cpu" if self.device == "auto" else self.device
+        self.history_ = []
+        self._fit_one_device(
+            X=x_tr,
+            y_tr=y_tr,
+            x_va=x_va,
+            y_va=y_va,
+            transformed_features=transformed.shape[1],
+            device_name=(
+                "cuda"
+                if self.device == "auto" and torch.cuda.is_available()
+                else "cpu" if self.device == "auto" else self.device
+            ),
         )
-        self.model_ = _make_network(self.architecture, transformed.shape[1]).to(
+        self.n_parameters_ = sum(
+            p.numel() for p in self.model_.parameters() if p.requires_grad
+        )
+        return self
+
+    def _fit_one_device(
+        self,
+        X: np.ndarray,
+        y_tr: np.ndarray,
+        x_va: np.ndarray,
+        y_va: np.ndarray,
+        transformed_features: int,
+        device_name: str,
+    ) -> None:
+        import torch
+        from torch import nn
+        from torch.utils.data import DataLoader, TensorDataset
+
+        self.device_ = torch.device(device_name)
+        self.model_ = _make_network(self.architecture, transformed_features).to(
             self.device_
         )
         optimizer = torch.optim.Adam(
@@ -112,9 +139,12 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             optimizer, mode="min", factor=0.5, patience=5
         )
         loss_fn = nn.CrossEntropyLoss()
+        batch_size = self.batch_size
+        if self.architecture == "ft_transformer":
+            batch_size = min(batch_size, 32)
         loader = DataLoader(
-            TensorDataset(torch.from_numpy(x_tr), torch.from_numpy(y_tr)),
-            batch_size=self.batch_size,
+            TensorDataset(torch.from_numpy(X), torch.from_numpy(y_tr)),
+            batch_size=batch_size,
             shuffle=True,
             num_workers=0,
             generator=torch.Generator().manual_seed(self.random_state),
@@ -129,47 +159,59 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             leave=False,
             dynamic_ncols=True,
         )
-        for epoch in epoch_iter:
-            self.model_.train()
-            train_loss = 0.0
-            for xb, yb in loader:
-                xb, yb = xb.to(self.device_), yb.to(self.device_)
-                optimizer.zero_grad(set_to_none=True)
-                loss = loss_fn(self.model_(xb), yb)
-                loss.backward()
-                optimizer.step()
-                train_loss += float(loss) * len(xb)
-            self.model_.eval()
-            with torch.no_grad():
-                val_loss = float(loss_fn(self.model_(x_val), y_val))
-            scheduler.step(val_loss)
-            epoch_iter.set_postfix(
-                train_loss=f"{train_loss / len(x_tr):.4f}",
-                val_loss=f"{val_loss:.4f}",
-                lr=f"{optimizer.param_groups[0]['lr']:.2e}",
-                refresh=False,
-            )
-            self.history_.append(
-                {
-                    "epoch": epoch + 1,
-                    "train_loss": train_loss / len(x_tr),
-                    "val_loss": val_loss,
-                    "learning_rate": optimizer.param_groups[0]["lr"],
-                }
-            )
-            if val_loss < best_loss - 1e-5:
-                best_loss = val_loss
-                best_state = copy.deepcopy(self.model_.state_dict())
-                stale = 0
-            else:
-                stale += 1
-                if stale >= self.patience:
-                    break
+        try:
+            for epoch in epoch_iter:
+                self.model_.train()
+                train_loss = 0.0
+                for xb, yb in loader:
+                    xb, yb = xb.to(self.device_), yb.to(self.device_)
+                    optimizer.zero_grad(set_to_none=True)
+                    loss = loss_fn(self.model_(xb), yb)
+                    loss.backward()
+                    optimizer.step()
+                    train_loss += float(loss) * len(xb)
+                self.model_.eval()
+                with torch.no_grad():
+                    val_loss = float(loss_fn(self.model_(x_val), y_val))
+                scheduler.step(val_loss)
+                if hasattr(epoch_iter, "set_postfix"):
+                    epoch_iter.set_postfix(
+                        train_loss=f"{train_loss / len(X):.4f}",
+                        val_loss=f"{val_loss:.4f}",
+                        lr=f"{optimizer.param_groups[0]['lr']:.2e}",
+                        refresh=False,
+                    )
+                self.history_.append(
+                    {
+                        "epoch": epoch + 1,
+                        "train_loss": train_loss / len(X),
+                        "val_loss": val_loss,
+                        "learning_rate": optimizer.param_groups[0]["lr"],
+                        "device": str(self.device_),
+                    }
+                )
+                if val_loss < best_loss - 1e-5:
+                    best_loss = val_loss
+                    best_state = copy.deepcopy(self.model_.state_dict())
+                    stale = 0
+                else:
+                    stale += 1
+                    if stale >= self.patience:
+                        break
+        except torch.cuda.OutOfMemoryError:
+            if self.device_ != torch.device("cpu"):
+                torch.cuda.empty_cache()
+                self._fit_one_device(
+                    X=X,
+                    y_tr=y_tr,
+                    x_va=x_va,
+                    y_va=y_va,
+                    transformed_features=transformed_features,
+                    device_name="cpu",
+                )
+                return
+            raise
         self.model_.load_state_dict(best_state)
-        self.n_parameters_ = sum(
-            p.numel() for p in self.model_.parameters() if p.requires_grad
-        )
-        return self
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Return ``[P(Low), P(High)]`` from batched softmax logits."""
