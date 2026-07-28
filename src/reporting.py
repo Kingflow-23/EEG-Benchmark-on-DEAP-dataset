@@ -12,22 +12,37 @@ import statistics
 from pathlib import Path
 from typing import Any
 
+import logging
+
+from .workflow import WorkflowTracker
 
 RANK_KEYS = ("macro_f1", "roc_auc", "accuracy_lift")
 
 
 def write_reports(
-    output: Path, records: list[dict[str, Any]], config: dict[str, Any]
+    output: Path,
+    records: list[dict[str, Any]],
+    config: dict[str, Any],
+    tracker: WorkflowTracker | None = None,
 ) -> dict[str, Any]:
     """Rank completed experiments and rewrite all aggregate reports.
 
     The function is intentionally safe to call after every experiment, making
     partial results durable during a long run. Failed and dependency-skipped
-    records remain visible but never enter the ranking.
+    records remain visible but never enter the ranking. When supplied, a
+    workflow tracker receives refresh and completion events for the report
+    rebuild.
 
     Returns the JSON-compatible object written to ``summary.json``.
     """
     output.mkdir(parents=True, exist_ok=True)
+    if tracker is not None:
+        tracker.log(
+            logging.INFO,
+            "reports_refresh",
+            output=str(output),
+            experiments=len(records),
+        )
     successful = [r for r in records if r.get("status") == "ok"]
     winners = {}
     for target in ("Valence", "Arousal"):
@@ -81,6 +96,14 @@ def write_reports(
         ]
     (output / "REPORT.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     _write_comparison_plot(output, successful)
+    if tracker is not None:
+        tracker.log(
+            logging.INFO,
+            "reports_written",
+            output=str(output),
+            successful=len(successful),
+            failed=len(failed),
+        )
     return summary
 
 
@@ -112,7 +135,9 @@ def _write_comparison_plot(output: Path, records: list[dict[str, Any]]) -> None:
 
 
 def write_cross_split_reports(
-    output: Path, summaries: dict[str, dict[str, Any]]
+    output: Path,
+    summaries: dict[str, dict[str, Any]],
+    tracker: WorkflowTracker | None = None,
 ) -> dict[str, Any]:
     """Rank models for robust generalization across leak-free split strategies.
 
@@ -120,6 +145,8 @@ def write_cross_split_reports(
     must complete both splits for a target to qualify. Mean macro-F1 is primary;
     worst-split macro-F1 breaks ties and penalizes brittle architectures. The
     ``repo`` result is retained in the report as a reproduction diagnostic.
+    When supplied, a workflow tracker receives refresh and completion events for
+    the cross-split report rebuild.
     """
     generalization_splits = ("subject", "trial")
     rows = []
@@ -181,6 +208,13 @@ def write_cross_split_reports(
         "models": rows,
     }
     output.mkdir(parents=True, exist_ok=True)
+    if tracker is not None:
+        tracker.log(
+            logging.INFO,
+            "cross_split_reports_refresh",
+            output=str(output),
+            splits=sorted(summaries),
+        )
     (output / "cross_split_summary.json").write_text(
         json.dumps(result, indent=2), encoding="utf-8"
     )
@@ -219,4 +253,11 @@ def write_cross_split_reports(
     (output / "CROSS_SPLIT_REPORT.md").write_text(
         "\n".join(lines) + "\n", encoding="utf-8"
     )
+    if tracker is not None:
+        tracker.log(
+            logging.INFO,
+            "cross_split_reports_written",
+            output=str(output),
+            winners=winners,
+        )
     return result
