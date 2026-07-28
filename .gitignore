@@ -13,11 +13,15 @@ data/*
 # Notebooks
 notebooks/*
 
-# models
+# generated benchmark artifacts
+output/*
+!output/.gitkeep
 *.pkl
-model/deep_experiment/*
+*.joblib
 
 # environment
 .env
 .vscode/
 venv/
+.venv/
+python-*-amd64.exe
