@@ -15,7 +15,7 @@ notebooks/*
 
 # generated benchmark artifacts
 output/*
-!output/.gitkeep
+!output/BENCHMARKS
 *.pkl
 *.joblib
 
