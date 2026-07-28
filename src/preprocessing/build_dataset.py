@@ -36,8 +36,14 @@ from typing import Iterable, Optional, Tuple
 import numpy as np
 
 from ..config import (
-    DATASET_PATH, DEFAULT_SPLIT, FEATURES_PATH, HELD_OUT_SUBJECTS,
-    HELD_OUT_TRIALS, N_FEATURES, N_SUBJECTS, SPLIT_MODES,
+    DATASET_PATH,
+    DEFAULT_SPLIT,
+    FEATURES_PATH,
+    HELD_OUT_SUBJECTS,
+    HELD_OUT_TRIALS,
+    N_FEATURES,
+    N_SUBJECTS,
+    SPLIT_MODES,
 )
 from ..utils import human_bytes
 from .fft_features import extraction_config, features_path_for, load_extraction_config
@@ -64,16 +70,24 @@ def make_test_mask(
         # Faithful to BuildDataset.py: `for i in range(sub.shape[0]): if i % 4 == 0`
         return (index_in_subject % 4) == 0
     if split_mode == "trial":
-        return np.isin(trial_id, np.asarray(list(held_out_trials), dtype=trial_id.dtype))
+        return np.isin(
+            trial_id, np.asarray(list(held_out_trials), dtype=trial_id.dtype)
+        )
     if split_mode == "subject":
-        return np.isin(subject_id, np.asarray(list(held_out_subjects), dtype=subject_id.dtype))
-    raise ValueError(f"Unknown split_mode {split_mode!r}; expected one of {SPLIT_MODES}.")
+        return np.isin(
+            subject_id, np.asarray(list(held_out_subjects), dtype=subject_id.dtype)
+        )
+    raise ValueError(
+        f"Unknown split_mode {split_mode!r}; expected one of {SPLIT_MODES}."
+    )
 
 
 def assert_no_leak(
     split_mode: str,
-    trial_tr: np.ndarray, trial_te: np.ndarray,
-    subj_tr: np.ndarray, subj_te: np.ndarray,
+    trial_tr: np.ndarray,
+    trial_te: np.ndarray,
+    subj_tr: np.ndarray,
+    subj_te: np.ndarray,
 ) -> None:
     """Assert that the grouping unit is disjoint across train and test.
 
@@ -83,11 +97,15 @@ def assert_no_leak(
     if split_mode == "trial":
         overlap = set(np.unique(trial_te)) & set(np.unique(trial_tr))
         if overlap:
-            raise AssertionError(f"trial split leaked trials into both sides: {sorted(overlap)}")
+            raise AssertionError(
+                f"trial split leaked trials into both sides: {sorted(overlap)}"
+            )
     elif split_mode == "subject":
         overlap = set(np.unique(subj_te)) & set(np.unique(subj_tr))
         if overlap:
-            raise AssertionError(f"subject split leaked subjects into both sides: {sorted(overlap)}")
+            raise AssertionError(
+                f"subject split leaked subjects into both sides: {sorted(overlap)}"
+            )
     # "repo" leaks by construction -- nothing to assert.
 
 
@@ -134,28 +152,30 @@ def build_dataset(
     emitted ``meta.json`` and retained for downstream aggregation.
     """
     if split_mode not in SPLIT_MODES:
-        raise ValueError(f"Unknown split_mode {split_mode!r}; expected one of {SPLIT_MODES}.")
+        raise ValueError(
+            f"Unknown split_mode {split_mode!r}; expected one of {SPLIT_MODES}."
+        )
 
-    subject_ids = (list(subject_ids) if subject_ids is not None
-                   else list(range(1, N_SUBJECTS + 1)))
+    subject_ids = (
+        list(subject_ids) if subject_ids is not None else list(range(1, N_SUBJECTS + 1))
+    )
     if not subject_ids:
         raise ValueError("subject_ids cannot be empty")
     if len(set(subject_ids)) != len(subject_ids):
         raise ValueError("subject_ids cannot contain duplicates")
     invalid = [subject for subject in subject_ids if not 1 <= subject <= N_SUBJECTS]
     if invalid:
-        raise ValueError(
-            f"DEAP subject IDs must be in 1..{N_SUBJECTS}, got {invalid}"
-        )
-    missing = [s for s in subject_ids if not features_path_for(s, features_dir).exists()]
+        raise ValueError(f"DEAP subject IDs must be in 1..{N_SUBJECTS}, got {invalid}")
+    missing = [
+        s for s in subject_ids if not features_path_for(s, features_dir).exists()
+    ]
     if missing:
         raise FileNotFoundError(
             f"Missing feature caches for subjects {missing}. "
             "Run `python -m src.benchmark --prepare ...` first."
         )
     feature_configs = [
-        load_extraction_config(features_path_for(s, features_dir))
-        for s in subject_ids
+        load_extraction_config(features_path_for(s, features_dir)) for s in subject_ids
     ]
     feature_config = feature_configs[0]
     if any(item != feature_config for item in feature_configs[1:]):
@@ -183,8 +203,11 @@ def build_dataset(
             return out_dir
         if verbose:
             n_cached = len(cached) if cached else "?"
-            reason = ("participant set changed" if cached != subject_ids
-                      else "feature settings changed")
+            reason = (
+                "participant set changed"
+                if cached != subject_ids
+                else "feature settings changed"
+            )
             print(
                 f"  {split_mode}: {reason} (cached subjects={n_cached}, "
                 f"requested={len(subject_ids)}) -- rebuilding"
@@ -208,20 +231,28 @@ def build_dataset(
 
         # meta columns kept alongside every window: subject, trial, window index,
         # and the four continuous ratings. Needed by the Gap Report stage.
-        meta = np.column_stack([
-            subject_arr.astype(np.float32),
-            trial_id.astype(np.float32),
-            window_id.astype(np.float32),
-            y_cont.astype(np.float32),
-        ]).astype(np.float32)
+        meta = np.column_stack(
+            [
+                subject_arr.astype(np.float32),
+                trial_id.astype(np.float32),
+                window_id.astype(np.float32),
+                y_cont.astype(np.float32),
+            ]
+        ).astype(np.float32)
 
         if train.any():
-            X_tr.append(X[train]); y_tr.append(y_bin[train]); m_tr.append(meta[train])
+            X_tr.append(X[train])
+            y_tr.append(y_bin[train])
+            m_tr.append(meta[train])
         if test.any():
-            X_te.append(X[test]); y_te.append(y_bin[test]); m_te.append(meta[test])
+            X_te.append(X[test])
+            y_te.append(y_bin[test])
+            m_te.append(meta[test])
 
         if verbose:
-            print(f"  s{sid:02d}: train {int(train.sum()):>6,}  test {int(test.sum()):>6,}")
+            print(
+                f"  s{sid:02d}: train {int(train.sum()):>6,}  test {int(test.sum()):>6,}"
+            )
 
     def _cat(parts, name):
         if not parts:
@@ -231,17 +262,23 @@ def build_dataset(
             )
         return np.concatenate(parts, axis=0)
 
-    X_train = _cat(X_tr, "training set"); y_train = _cat(y_tr, "training labels")
+    X_train = _cat(X_tr, "training set")
+    y_train = _cat(y_tr, "training labels")
     meta_train = _cat(m_tr, "training meta")
-    X_test = _cat(X_te, "test set"); y_test = _cat(y_te, "test labels")
+    X_test = _cat(X_te, "test set")
+    y_test = _cat(y_te, "test labels")
     meta_test = _cat(m_te, "test meta")
 
     assert_no_leak(
         split_mode,
-        meta_train[:, 1], meta_test[:, 1],      # trial ids
-        meta_train[:, 0], meta_test[:, 0],      # subject ids
+        meta_train[:, 1],
+        meta_test[:, 1],  # trial ids
+        meta_train[:, 0],
+        meta_test[:, 0],  # subject ids
     )
-    assert X_train.shape[1] == N_FEATURES, f"expected {N_FEATURES} features, got {X_train.shape[1]}"
+    assert (
+        X_train.shape[1] == N_FEATURES
+    ), f"expected {N_FEATURES} features, got {X_train.shape[1]}"
 
     out_dir.mkdir(parents=True, exist_ok=True)
     np.save(out_dir / "data_training.npy", X_train)
@@ -260,9 +297,18 @@ def build_dataset(
         "n_features": int(X_train.shape[1]),
         "feature_config": feature_config,
         "label_columns": ["Valence", "Arousal"],
-        "meta_columns": ["subject_id", "trial_id", "window_id",
-                         "Valence", "Arousal", "Dominance", "Liking"],
-        "held_out_subjects": list(HELD_OUT_SUBJECTS) if split_mode == "subject" else None,
+        "meta_columns": [
+            "subject_id",
+            "trial_id",
+            "window_id",
+            "Valence",
+            "Arousal",
+            "Dominance",
+            "Liking",
+        ],
+        "held_out_subjects": (
+            list(HELD_OUT_SUBJECTS) if split_mode == "subject" else None
+        ),
         "held_out_trials": list(HELD_OUT_TRIALS) if split_mode == "trial" else None,
         "positive_rate_train": {
             "Valence": round(float(y_train[:, 0].mean()), 4),
@@ -273,10 +319,14 @@ def build_dataset(
             "Arousal": round(float(y_test[:, 1].mean()), 4),
         },
         "leakage_warning": (
-            "Adjacent windows overlap 93.75%; this split places overlapping "
-            "windows from the same trial and subject on both sides. Accuracy "
-            "from this split is not a generalisation estimate."
-        ) if split_mode == "repo" else None,
+            (
+                "Adjacent windows overlap 93.75%; this split places overlapping "
+                "windows from the same trial and subject on both sides. Accuracy "
+                "from this split is not a generalisation estimate."
+            )
+            if split_mode == "repo"
+            else None
+        ),
     }
     marker.write_text(json.dumps(meta_info, indent=2), encoding="utf-8")
 
@@ -286,10 +336,12 @@ def build_dataset(
             f"\n  [{split_mode}] train {X_train.shape}  test {X_test.shape}  "
             f"({human_bytes(nbytes)} on disk)"
         )
-        print(f"  positive rate  train V={meta_info['positive_rate_train']['Valence']:.3f} "
-              f"A={meta_info['positive_rate_train']['Arousal']:.3f}  |  "
-              f"test V={meta_info['positive_rate_test']['Valence']:.3f} "
-              f"A={meta_info['positive_rate_test']['Arousal']:.3f}")
+        print(
+            f"  positive rate  train V={meta_info['positive_rate_train']['Valence']:.3f} "
+            f"A={meta_info['positive_rate_train']['Arousal']:.3f}  |  "
+            f"test V={meta_info['positive_rate_test']['Valence']:.3f} "
+            f"A={meta_info['positive_rate_test']['Arousal']:.3f}"
+        )
         print(f"  -> {out_dir}")
 
     return out_dir
@@ -355,4 +407,6 @@ def load_split(
 
 def load_split_info(split_mode: str = DEFAULT_SPLIT, base: Path = DATASET_PATH) -> dict:
     """Load the provenance and class-distribution metadata for one split."""
-    return json.loads((split_dir(split_mode, base) / "meta.json").read_text(encoding="utf-8"))
+    return json.loads(
+        (split_dir(split_mode, base) / "meta.json").read_text(encoding="utf-8")
+    )

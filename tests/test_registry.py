@@ -6,7 +6,9 @@ from src.models import available_models, create_model
 
 
 def test_core_sklearn_models_expose_probabilities():
-    X = np.array([[0., 0.], [0., 1.], [1., 0.], [1., 1.], [.1, .2], [.9, .8]])
+    X = np.array(
+        [[0.0, 0.0], [0.0, 1.0], [1.0, 0.0], [1.0, 1.0], [0.1, 0.2], [0.9, 0.8]]
+    )
     y = np.array([0, 0, 1, 1, 0, 1])
     for name in ("logistic_regression",):
         model, _ = create_model(name, 42)
@@ -18,12 +20,15 @@ def test_core_sklearn_models_expose_probabilities():
 
 def test_curated_neural_architectures_are_registered():
     names = set(available_models())
-    assert {"feature_mlp", "band_electrode_cnn",
-            "fft_lstm", "ft_transformer"} <= names
+    assert {"feature_mlp", "band_electrode_cnn", "fft_lstm", "ft_transformer"} <= names
 
 
 def test_standard_suite_contains_only_curated_models():
     assert available_models() == [
-        "logistic_regression", "extra_trees", "feature_mlp",
-        "band_electrode_cnn", "fft_lstm", "ft_transformer",
+        "logistic_regression",
+        "extra_trees",
+        "feature_mlp",
+        "band_electrode_cnn",
+        "fft_lstm",
+        "ft_transformer",
     ]

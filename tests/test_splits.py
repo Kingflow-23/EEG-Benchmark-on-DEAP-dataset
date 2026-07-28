@@ -13,9 +13,15 @@ def test_repo_mask_matches_every_fourth_window():
 
 def test_group_splits_use_declared_ids():
     idx = np.arange(4)
-    assert make_test_mask("trial", idx, np.array([1, 2, 3, 4]), np.ones(4), held_out_trials=[2]).tolist() == [False, True, False, False]
-    assert make_test_mask("subject", idx, idx, np.array([1, 2, 3, 4]), held_out_subjects=[3]).tolist() == [False, False, True, False]
+    assert make_test_mask(
+        "trial", idx, np.array([1, 2, 3, 4]), np.ones(4), held_out_trials=[2]
+    ).tolist() == [False, True, False, False]
+    assert make_test_mask(
+        "subject", idx, idx, np.array([1, 2, 3, 4]), held_out_subjects=[3]
+    ).tolist() == [False, False, True, False]
 
 
 def test_nonleaky_grouped_split_passes():
-    assert_no_leak("subject", np.array([1, 2]), np.array([3]), np.array([1, 2]), np.array([3]))
+    assert_no_leak(
+        "subject", np.array([1, 2]), np.array([3]), np.array([1, 2]), np.array([3])
+    )

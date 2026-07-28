@@ -40,9 +40,15 @@ else:
     from .utils import model_size_bytes, safe_name, seed_everything
 
 
-def run_benchmark(split: str, model_names: list[str], output: Path, seed: int,
-                  max_train_samples: int | None = None, max_test_samples: int | None = None,
-                  fail_fast: bool = False) -> dict:
+def run_benchmark(
+    split: str,
+    model_names: list[str],
+    output: Path,
+    seed: int,
+    max_train_samples: int | None = None,
+    max_test_samples: int | None = None,
+    fail_fast: bool = False,
+) -> dict:
     """Train and evaluate each architecture for both affective targets.
 
     Parameters
@@ -93,11 +99,15 @@ def run_benchmark(split: str, model_names: list[str], output: Path, seed: int,
                 seed_everything(seed)
                 model, spec = create_model(model_name, seed)
                 record.update(family=spec.family, notes=spec.notes)
-                started = time.perf_counter(); model.fit(Xtr, ytr_all[:, target_index])
+                started = time.perf_counter()
+                model.fit(Xtr, ytr_all[:, target_index])
                 record["train_seconds"] = time.perf_counter() - started
-                started = time.perf_counter(); probabilities = model.predict_proba(Xte)
+                started = time.perf_counter()
+                probabilities = model.predict_proba(Xte)
                 record["inference_seconds"] = time.perf_counter() - started
-                metrics = evaluate_probabilities(yte_all[:, target_index], probabilities)
+                metrics = evaluate_probabilities(
+                    yte_all[:, target_index], probabilities
+                )
                 record.update(metrics)
                 run_dir.mkdir(parents=True, exist_ok=True)
                 if hasattr(model, "save"):
@@ -109,12 +119,17 @@ def run_benchmark(split: str, model_names: list[str], output: Path, seed: int,
                 record["model_size_bytes"] = model_size_bytes(model_path)
                 record["trainable_parameters"] = getattr(model, "n_parameters_", None)
                 save_evaluation_artifacts(
-                    run_dir, yte_all[:, target_index], probabilities, metrics,
+                    run_dir,
+                    yte_all[:, target_index],
+                    probabilities,
+                    metrics,
                     metadata=selected_meta_test,
                 )
                 history = getattr(model, "history_", None)
                 if history is not None:
-                    (run_dir / "training_history.json").write_text(json.dumps(history, indent=2), encoding="utf-8")
+                    (run_dir / "training_history.json").write_text(
+                        json.dumps(history, indent=2), encoding="utf-8"
+                    )
                 record["status"] = "ok"
             except (ImportError, ModuleNotFoundError) as exc:
                 record.update(status="skipped", error=str(exc))
@@ -128,7 +143,9 @@ def run_benchmark(split: str, model_names: list[str], output: Path, seed: int,
     return write_reports(output, records, run_config)
 
 
-def _stratified_limit(labels: np.ndarray, limit: int | None, rng: np.random.Generator) -> np.ndarray:
+def _stratified_limit(
+    labels: np.ndarray, limit: int | None, rng: np.random.Generator
+) -> np.ndarray:
     """Select row indices while approximately preserving four joint labels.
 
     ``labels`` has columns ``[Valence, Arousal]``. Their binary combination
@@ -162,40 +179,61 @@ def _stratified_limit(labels: np.ndarray, limit: int | None, rng: np.random.Gene
     return np.sort(chosen[:limit])
 
 
-def _run_config(split: str, models: list[str], seed: int, n_train: int, n_test: int) -> dict:
+def _run_config(
+    split: str, models: list[str], seed: int, n_train: int, n_test: int
+) -> dict:
     """Build the provenance block embedded in every aggregate report."""
     versions = {"python": platform.python_version(), "numpy": np.__version__}
     try:
         import sklearn
+
         versions["scikit_learn"] = sklearn.__version__
     except ImportError:
         versions["scikit_learn"] = None
     try:
         import torch
+
         versions["torch"] = torch.__version__
         versions["compute_device"] = "cuda" if torch.cuda.is_available() else "cpu"
     except ImportError:
         versions.update(torch=None, compute_device=None)
-    return {"dataset": "DEAP", "split": split, "models": models, "seed": seed,
-            "n_train": n_train, "n_test": n_test, "features": config.N_FEATURES,
-            "created_utc": datetime.now(timezone.utc).isoformat(),
-            "platform": platform.platform(), "versions": versions}
+    return {
+        "dataset": "DEAP",
+        "split": split,
+        "models": models,
+        "seed": seed,
+        "n_train": n_train,
+        "n_test": n_test,
+        "features": config.N_FEATURES,
+        "created_utc": datetime.now(timezone.utc).isoformat(),
+        "platform": platform.platform(),
+        "versions": versions,
+    }
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments, or an explicit argument list in tests/tools."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--split", choices=(*config.SPLIT_MODES, "all"),
-                        default=config.DEFAULT_SPLIT)
-    parser.add_argument("--models", nargs="+", default=None, help="Registry names (default: core suite)")
+    parser.add_argument(
+        "--split", choices=(*config.SPLIT_MODES, "all"), default=config.DEFAULT_SPLIT
+    )
+    parser.add_argument(
+        "--models", nargs="+", default=None, help="Registry names (default: core suite)"
+    )
     parser.add_argument("--include-optional", action="store_true")
-    parser.add_argument("--prepare", action="store_true", help="Extract features and build the split first")
+    parser.add_argument(
+        "--prepare",
+        action="store_true",
+        help="Extract features and build the split first",
+    )
     parser.add_argument("--subjects", nargs="+", type=int, default=None)
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--seed", type=int, default=config.RANDOM_SEED)
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-test-samples", type=int)
-    parser.add_argument("--smoke", action="store_true", help="Use 2,000/1,000 samples and fast models")
+    parser.add_argument(
+        "--smoke", action="store_true", help="Use 2,000/1,000 samples and fast models"
+    )
     parser.add_argument("--output", type=Path)
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--list-models", action="store_true")
@@ -206,7 +244,8 @@ def main(argv: list[str] | None = None) -> int:
     """Prepare data when requested, execute a run, and print its winners."""
     args = parse_args(argv)
     if args.list_models:
-        print("\n".join(available_models(True))); return 0
+        print("\n".join(available_models(True)))
+        return 0
     config.ensure_dirs()
     models = args.models or available_models(args.include_optional)
     if args.smoke:
@@ -226,8 +265,13 @@ def main(argv: list[str] | None = None) -> int:
     for split in splits:
         split_output = output / split if args.split == "all" else output
         summaries[split] = run_benchmark(
-            split, models, split_output, args.seed, args.max_train_samples,
-            args.max_test_samples, args.fail_fast,
+            split,
+            models,
+            split_output,
+            args.seed,
+            args.max_train_samples,
+            args.max_test_samples,
+            args.fail_fast,
         )
     if args.split == "all":
         cross_split = write_cross_split_reports(output, summaries)

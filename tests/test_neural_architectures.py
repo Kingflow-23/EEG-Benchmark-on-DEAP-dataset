@@ -10,8 +10,9 @@ torch = pytest.importorskip("torch")
 
 def _parameters(model) -> int:
     """Count trainable parameters in a test network."""
-    return sum(parameter.numel() for parameter in model.parameters()
-               if parameter.requires_grad)
+    return sum(
+        parameter.numel() for parameter in model.parameters() if parameter.requires_grad
+    )
 
 
 def test_neural_architecture_parameter_counts():
@@ -21,8 +22,9 @@ def test_neural_architecture_parameter_counts():
     assert _parameters(_make_network("fft_lstm", 160)) == 789_298
 
 
-@pytest.mark.parametrize("name", ["feature_mlp", "band_electrode_cnn",
-                                  "fft_lstm", "ft_transformer"])
+@pytest.mark.parametrize(
+    "name", ["feature_mlp", "band_electrode_cnn", "fft_lstm", "ft_transformer"]
+)
 def test_neural_models_emit_two_logits(name):
     """Every neural candidate must satisfy the common binary-logit contract."""
     model = _make_network(name, 160).eval()

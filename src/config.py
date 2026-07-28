@@ -18,12 +18,15 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 RAW_DATA_PATH = PROJECT_ROOT / "data" / "DEAP"
 DATA_DIR = PROJECT_ROOT / "output"
-FEATURES_PATH = DATA_DIR / "FEATURES"          # per-participant .npz
-DATASET_PATH = DATA_DIR / "DATASET"            # assembled train/test splits
+FEATURES_PATH = DATA_DIR / "FEATURES"  # per-participant .npz
+DATASET_PATH = DATA_DIR / "DATASET"  # assembled train/test splits
 BENCHMARK_PATH = DATA_DIR / "BENCHMARKS"
 
 _ALL_OUTPUT_DIRS = (
-    DATA_DIR, FEATURES_PATH, DATASET_PATH, BENCHMARK_PATH,
+    DATA_DIR,
+    FEATURES_PATH,
+    DATASET_PATH,
+    BENCHMARK_PATH,
 )
 
 
@@ -41,16 +44,16 @@ def ensure_dirs() -> None:
 # --------------------------------------------------------------------------- #
 # Signal constants
 # --------------------------------------------------------------------------- #
-SAMPLE_RATE = 128            # Hz, DEAP "preprocessed_python" is downsampled to 128
+SAMPLE_RATE = 128  # Hz, DEAP "preprocessed_python" is downsampled to 128
 N_SUBJECTS = 32
 N_TRIALS = 40
-N_SAMPLES_PER_TRIAL = 8064   # 63 s @ 128 Hz = 3 s pre-stimulus baseline + 60 s stimulus
+N_SAMPLES_PER_TRIAL = 8064  # 63 s @ 128 Hz = 3 s pre-stimulus baseline + 60 s stimulus
 
 BASELINE_SEC = 3
-BASELINE_SAMPLES = BASELINE_SEC * SAMPLE_RATE          # 384
+BASELINE_SAMPLES = BASELINE_SEC * SAMPLE_RATE  # 384
 
-WINDOW_SIZE = 256            # samples = 2.00 s   (repo value)
-STEP_SIZE = 16               # samples = 0.125 s  (repo value) -> 488 windows/trial
+WINDOW_SIZE = 256  # samples = 2.00 s   (repo value)
+STEP_SIZE = 16  # samples = 0.125 s  (repo value) -> 488 windows/trial
 
 # Set True to skip the 3 s pre-stimulus baseline. The reference repo does NOT do
 # this: it starts windowing at sample 0, so roughly the first 24 windows of every
@@ -62,11 +65,40 @@ DROP_BASELINE = False
 # Electrodes and frequency bands
 # --------------------------------------------------------------------------- #
 DEAP_ELECTRODES = [
-    "Fp1", "AF3", "F3", "F7", "FC5", "FC1", "C3", "T7", "CP5", "CP1", "P3", "P7",
-    "PO3", "O1", "Oz", "Pz", "Fp2", "AF4", "Fz", "F4", "F8", "FC6", "FC2", "Cz",
-    "C4", "T8", "CP6", "CP2", "P4", "P8", "PO4", "O2",
+    "Fp1",
+    "AF3",
+    "F3",
+    "F7",
+    "FC5",
+    "FC1",
+    "C3",
+    "T7",
+    "CP5",
+    "CP1",
+    "P3",
+    "P7",
+    "PO3",
+    "O1",
+    "Oz",
+    "Pz",
+    "Fp2",
+    "AF4",
+    "Fz",
+    "F4",
+    "F8",
+    "FC6",
+    "FC2",
+    "Cz",
+    "C4",
+    "T8",
+    "CP6",
+    "CP2",
+    "P4",
+    "P8",
+    "PO4",
+    "O2",
 ]
-N_CHANNELS = len(DEAP_ELECTRODES)               # 32
+N_CHANNELS = len(DEAP_ELECTRODES)  # 32
 
 # Band edges, as passed to pyeeg.bin_power in the reference repo:
 #   band=[4, 8, 12, 16, 25, 45]  ->  5 bands
@@ -78,15 +110,13 @@ N_CHANNELS = len(DEAP_ELECTRODES)               # 32
 # simply wrong. We follow the code.
 BAND_EDGES = [4, 8, 12, 16, 25, 45]
 BAND_NAMES = ["Theta", "Alpha", "LowerBeta", "UpperBeta", "Gamma"]
-N_BANDS = len(BAND_NAMES)                       # 5
+N_BANDS = len(BAND_NAMES)  # 5
 
-N_FEATURES = N_CHANNELS * N_BANDS               # 160
+N_FEATURES = N_CHANNELS * N_BANDS  # 160
 
 # Feature vector layout is channel-major: for each channel, its 5 bands in order.
 FEATURE_NAMES = [
-    f"{electrode}_{band}"
-    for electrode in DEAP_ELECTRODES
-    for band in BAND_NAMES
+    f"{electrode}_{band}" for electrode in DEAP_ELECTRODES for band in BAND_NAMES
 ]
 assert len(FEATURE_NAMES) == N_FEATURES
 
@@ -104,7 +134,7 @@ LABEL_INDEX = {name: i for i, name in enumerate(LABEL_NAMES)}
 
 VALENCE = "Valence"
 AROUSAL = "Arousal"
-TARGETS = (VALENCE, AROUSAL)                    # the two models we train
+TARGETS = (VALENCE, AROUSAL)  # the two models we train
 
 # Binarisation of the 1-9 self-report scale into High/Low.
 #   "fixed"       -> rating >= BINARY_THRESHOLD  (repo behaviour)
@@ -152,6 +182,7 @@ NEURAL_WEIGHT_DECAY = 1e-4
 NEURAL_PATIENCE = 7
 NEURAL_VALIDATION_FRACTION = 0.15
 
+
 # --------------------------------------------------------------------------- #
 # Derived helpers
 # --------------------------------------------------------------------------- #
@@ -187,7 +218,7 @@ def windows_per_trial(
     return count
 
 
-WINDOWS_PER_TRIAL = windows_per_trial()          # 488 with repo defaults
+WINDOWS_PER_TRIAL = windows_per_trial()  # 488 with repo defaults
 
 
 def subject_id_to_filename(subject_id: int) -> str:
@@ -201,23 +232,25 @@ def subject_id_to_filename(subject_id: int) -> str:
 def describe() -> str:
     """Return a compact, human-readable summary of active signal settings."""
     total = N_SUBJECTS * N_TRIALS * WINDOWS_PER_TRIAL
-    return "\n".join([
-        "=" * 62,
-        " PIPELINE CONFIGURATION",
-        "=" * 62,
-        f" raw data          : {RAW_DATA_PATH}",
-        f" sample rate       : {SAMPLE_RATE} Hz",
-        f" window            : {WINDOW_SIZE} samples ({WINDOW_SIZE / SAMPLE_RATE:.2f} s)",
-        f" step              : {STEP_SIZE} samples ({STEP_SIZE / SAMPLE_RATE:.3f} s)",
-        f" overlap           : {100 * (1 - STEP_SIZE / WINDOW_SIZE):.2f}%",
-        f" drop baseline     : {DROP_BASELINE}",
-        f" windows / trial   : {WINDOWS_PER_TRIAL}",
-        f" channels x bands  : {N_CHANNELS} x {N_BANDS} = {N_FEATURES} features",
-        f" bands             : {', '.join(f'{n}({BAND_EDGES[i]}-{BAND_EDGES[i + 1]}Hz)' for i, n in enumerate(BAND_NAMES))}",
-        f" binarisation      : {BINARISATION} (threshold {BINARY_THRESHOLD})",
-        f" total windows     : {total:,}",
-        "=" * 62,
-    ])
+    return "\n".join(
+        [
+            "=" * 62,
+            " PIPELINE CONFIGURATION",
+            "=" * 62,
+            f" raw data          : {RAW_DATA_PATH}",
+            f" sample rate       : {SAMPLE_RATE} Hz",
+            f" window            : {WINDOW_SIZE} samples ({WINDOW_SIZE / SAMPLE_RATE:.2f} s)",
+            f" step              : {STEP_SIZE} samples ({STEP_SIZE / SAMPLE_RATE:.3f} s)",
+            f" overlap           : {100 * (1 - STEP_SIZE / WINDOW_SIZE):.2f}%",
+            f" drop baseline     : {DROP_BASELINE}",
+            f" windows / trial   : {WINDOWS_PER_TRIAL}",
+            f" channels x bands  : {N_CHANNELS} x {N_BANDS} = {N_FEATURES} features",
+            f" bands             : {', '.join(f'{n}({BAND_EDGES[i]}-{BAND_EDGES[i + 1]}Hz)' for i, n in enumerate(BAND_NAMES))}",
+            f" binarisation      : {BINARISATION} (threshold {BINARY_THRESHOLD})",
+            f" total windows     : {total:,}",
+            "=" * 62,
+        ]
+    )
 
 
 if __name__ == "__main__":

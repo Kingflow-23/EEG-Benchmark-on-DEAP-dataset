@@ -32,9 +32,22 @@ from typing import Iterable, Optional
 import numpy as np
 
 from ..config import (
-    BAND_EDGES, BASELINE_SAMPLES, BINARISATION, BINARY_THRESHOLD, DROP_BASELINE,
-    FEATURES_PATH, LABEL_INDEX, N_BANDS, N_CHANNELS, N_FEATURES, N_TRIALS,
-    RAW_DATA_PATH, SAMPLE_RATE, STEP_SIZE, WINDOW_SIZE, subject_id_to_filename,
+    BAND_EDGES,
+    BASELINE_SAMPLES,
+    BINARISATION,
+    BINARY_THRESHOLD,
+    DROP_BASELINE,
+    FEATURES_PATH,
+    LABEL_INDEX,
+    N_BANDS,
+    N_CHANNELS,
+    N_FEATURES,
+    N_TRIALS,
+    RAW_DATA_PATH,
+    SAMPLE_RATE,
+    STEP_SIZE,
+    WINDOW_SIZE,
+    subject_id_to_filename,
     windows_per_trial,
 )
 from .bandpower import bin_power
@@ -119,9 +132,9 @@ def extract_trial_features(
 
     # (n_channels, n_valid_starts, window_size) as a strided view -- no copy.
     view = np.lib.stride_tricks.sliding_window_view(trial_eeg, window_size, axis=-1)
-    windows = view[:, starts, :]                       # (n_channels, n_windows, window_size)
+    windows = view[:, starts, :]  # (n_channels, n_windows, window_size)
 
-    powers = bin_power(windows, band_edges, sample_rate)   # (n_ch, n_win, n_bands)
+    powers = bin_power(windows, band_edges, sample_rate)  # (n_ch, n_win, n_bands)
 
     # -> (n_windows, n_channels, n_bands) -> flatten channel-major
     powers = np.transpose(powers, (1, 0, 2))
@@ -164,7 +177,9 @@ def binarise(
         return (ratings >= threshold).astype(np.int8)
     if mode == "subject_median":
         return (ratings >= np.median(ratings, axis=0, keepdims=True)).astype(np.int8)
-    raise ValueError(f"Unknown binarisation mode {mode!r}; use 'fixed' or 'subject_median'.")
+    raise ValueError(
+        f"Unknown binarisation mode {mode!r}; use 'fixed' or 'subject_median'."
+    )
 
 
 # --------------------------------------------------------------------------- #
@@ -244,8 +259,8 @@ def extract_subject(
             print(f"  s{subject_id:02d}: cache settings changed, rebuilding")
 
     subject = load_raw_subject(subject_id, raw_path)
-    data = subject["data"]            # (40, 40, 8064)
-    labels = subject["labels"]        # (40, 4)  [Valence, Arousal, Dominance, Liking]
+    data = subject["data"]  # (40, 40, 8064)
+    labels = subject["labels"]  # (40, 4)  [Valence, Arousal, Dominance, Liking]
 
     n_trials = min(N_TRIALS, data.shape[0])
     n_windows = windows_per_trial(window_size, step_size, data.shape[2], drop_baseline)
@@ -263,8 +278,12 @@ def extract_subject(
     for trial in range(n_trials):
         lo, hi = trial * n_windows, (trial + 1) * n_windows
         X[lo:hi] = extract_trial_features(
-            data[trial, :N_CHANNELS], window_size, step_size,
-            BAND_EDGES, SAMPLE_RATE, drop_baseline,
+            data[trial, :N_CHANNELS],
+            window_size,
+            step_size,
+            BAND_EDGES,
+            SAMPLE_RATE,
+            drop_baseline,
         )
         y_bin[lo:hi] = va_bin[trial]
         y_cont[lo:hi] = labels[trial]
@@ -276,8 +295,12 @@ def extract_subject(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         out_path,
-        X=X, y_bin=y_bin, y_cont=y_cont,
-        trial_id=trial_id, window_id=window_id, subject_id=subject_arr,
+        X=X,
+        y_bin=y_bin,
+        y_cont=y_cont,
+        trial_id=trial_id,
+        window_id=window_id,
+        subject_id=subject_arr,
         extraction_config=np.asarray(json.dumps(expected_config, sort_keys=True)),
     )
 
@@ -302,8 +325,9 @@ def extract_all(
     ``overwrite`` is true. Additional keyword arguments are forwarded to
     :func:`extract_subject`.
     """
-    subject_ids = (list(subject_ids) if subject_ids is not None
-                   else list(range(1, N_SUBJECTS + 1)))
+    subject_ids = (
+        list(subject_ids) if subject_ids is not None else list(range(1, N_SUBJECTS + 1))
+    )
     return [extract_subject(sid, overwrite=overwrite, **kwargs) for sid in subject_ids]
 
 
