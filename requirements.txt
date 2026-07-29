@@ -7,3 +7,4 @@ torch>=2.1
 tqdm>=4.66
 xgboost>=2.0
 tabicl
+pytest
