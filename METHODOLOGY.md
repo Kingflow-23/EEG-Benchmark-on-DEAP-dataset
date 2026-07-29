@@ -70,11 +70,18 @@ a fixed stratified 15% validation subset from those rows for early stopping.
 Test rows never affect scaling, optimization, or epoch selection.
 
 Neural architectures share the production trainer's Adam optimizer (learning
-rate `1e-3`, weight decay `1e-4`), cross-entropy loss, batch size 256, and
+rate `1e-3`, weight decay `1e-4`), cross-entropy loss, a configured batch-size
+ceiling of 256, and
 ReduceLROnPlateau schedule. They also share 50 maximum epochs, patience 7, a
 15% train-only validation fraction, and best-validation-loss restoration.
 These values come from `src/config.py`. This is a controlled architecture
 comparison, not per-model hyperparameter optimization.
+
+Training, validation, and prediction are all batched. The attention-heavy
+FT-Transformer is capped at 32 rows per batch and the five-layer FFT-LSTM at
+16 rows per batch to fit consumer GPUs; other neural models may use the
+configured ceiling of 256. These caps change execution granularity, not the
+selected data or loss definition.
 
 ## Candidate rationale
 
@@ -91,6 +98,15 @@ same hypothesis do not make the comparison more informative.
 | `fft_lstm` | Reshape to `(160 steps, 1)`; bidirectional LSTM-128, then LSTM `256->256->64->64->32`; dropout `.6/.6/.6/.4/.4`; `32->16->2` head | Published FFT-feature recurrent architecture, necessary to reproduce and compare the incumbent model. | The 160 simultaneous channel-band values are not time; it is slow, over-parameterized, and semantically awkward. |
 | `ft_transformer` | Per-feature scalar tokenization; two 16-wide, four-head Transformer encoder layers; mean pooling; two-logit head | One modern tabular-attention hypothesis that preserves feature identity without invented temporal or spatial geometry. | Quadratic attention over 160 tokens and higher compute than the MLP. |
 | `tabicl` | TabICL classifier with shared CUDA/CPU policy | In-context learner for tabular features with a qualitatively different inference strategy. | Sensitive to memory and version constraints of the installed package. |
+
+TabICL uses a deterministic, jointly stratified cap of 10,000 training windows
+and 2,000 test windows by default. Its in-context output tensors otherwise grow
+to impractical sizes on the full window-level DEAP split. The same selected
+rows are used for Valence and Arousal, and artifacts record `n_train_samples`,
+`n_test_samples`, and `sampling_protocol`. Therefore TabICL scores describe the
+reduced-data protocol and must not be treated as a like-for-like full-data
+comparison. Use `--tabicl-max-train-samples` and
+`--tabicl-max-test-samples` to tune the ceilings for available memory.
 
 This benchmark suite is closed and required. Every listed candidate must be
 available in the benchmark environment and is expected to run.

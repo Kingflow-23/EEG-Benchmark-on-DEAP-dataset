@@ -80,6 +80,12 @@ hypothesis:
 
 See the methodology for layer details, limitations, and the redundancy audit.
 
+TabICL is automatically limited to a reproducible stratified sample of 10,000
+training and 2,000 test windows because full-split in-context inference can
+require hundreds of gigabytes of memory. Override these limits with
+`--tabicl-max-train-samples` and `--tabicl-max-test-samples`; reports preserve
+the effective counts and identify the reduced sampling protocol.
+
 ## Multi-split robustness
 
 `--split all` runs identical models and seeds on `subject`, `trial`, and `repo`.
