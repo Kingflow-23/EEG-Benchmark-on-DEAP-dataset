@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.evaluation import evaluate_probabilities
+from src.evaluation import evaluate_probabilities, normalize_probabilities
 
 
 def test_probability_metrics_and_baseline():
@@ -19,3 +19,12 @@ def test_probability_metrics_and_baseline():
 def test_invalid_probabilities_are_rejected():
     with pytest.raises(ValueError):
         evaluate_probabilities(np.array([0]), np.array([[0.2, 0.2]]))
+
+
+def test_small_probability_drift_is_normalized_exactly():
+    probabilities = np.array([[0.70002, 0.29999], [0.19999, 0.80002]])
+    normalized = normalize_probabilities(probabilities)
+
+    np.testing.assert_allclose(normalized.sum(axis=1), 1.0, rtol=0, atol=1e-15)
+    result = evaluate_probabilities(np.array([0, 1]), probabilities)
+    assert result["accuracy"] == 1.0
