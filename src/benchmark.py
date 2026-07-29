@@ -338,7 +338,7 @@ def main(argv: list[str] | None = None) -> int:
     """
     args = parse_args(argv)
     if args.list_models:
-        print("\n".join(available_models(True)))
+        print("\n".join(available_models()))
         return 0
     config.ensure_dirs()
     models = args.models or available_models()

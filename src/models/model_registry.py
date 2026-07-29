@@ -114,6 +114,10 @@ def _tabicl(seed: int) -> Any:
 
     return TabICLClassifier(
         device="cuda" if TABICL_USE_CUDA else "cpu",
+        use_amp="auto",
+        offload_mode="auto",
+        kv_cache=True,
+        batch_size=4,
         random_state=seed,
     )
 
