@@ -109,11 +109,12 @@ def _xgboost(seed: int) -> Any:
 
 
 def _tabicl(seed: int) -> Any:
-    """Create the required TabICL benchmark candidate."""
+    """Create TabICL on CUDA when requested and available, otherwise CPU."""
+    import torch
     from tabicl import TabICLClassifier
 
     return TabICLClassifier(
-        device="cuda" if TABICL_USE_CUDA else "cpu",
+        device="cuda" if TABICL_USE_CUDA and torch.cuda.is_available() else "cpu",
         use_amp="auto",
         offload_mode="auto",
         kv_cache=True,
