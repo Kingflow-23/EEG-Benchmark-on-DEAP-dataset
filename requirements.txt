@@ -7,7 +7,3 @@ torch>=2.1
 tqdm>=4.66
 xgboost>=2.0
 tabicl
-
-# Optional candidates (install only those selected for a benchmark):
-# xgboost>=2.0
-# tabpfn>=2.0
