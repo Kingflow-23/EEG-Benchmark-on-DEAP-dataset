@@ -38,7 +38,8 @@ def evaluate_probabilities(
         One-dimensional binary labels in ``{0, 1}``.
     probabilities
         Matrix shaped ``(n_samples, 2)``. Columns are ordered ``[P(Low),
-        P(High)]`` and each finite row must sum to one within ``1e-4``.
+        P(High)]``. Each finite row must sum to one within ``1e-4``; accepted
+        floating-point drift is normalized before metrics are calculated.
 
     Returns
     -------
@@ -52,21 +53,12 @@ def evaluate_probabilities(
         If the probability shape or values violate the shared contract.
     """
     y_true = np.asarray(y_true)
-    proba = np.asarray(probabilities, dtype=float)
-    if proba.ndim != 2 or proba.shape[1] != 2:
-        raise ValueError(f"Expected (n, 2) probabilities, got {proba.shape}")
+    proba = normalize_probabilities(probabilities)
     if y_true.ndim != 1 or len(y_true) != len(proba):
         raise ValueError("y_true must be one-dimensional and match probability rows")
     classes = np.unique(y_true)
     if not np.array_equal(classes, np.array([0, 1])):
         raise ValueError("evaluation requires test labels containing both 0 and 1")
-    if (
-        not np.all(np.isfinite(proba))
-        or np.any(proba < 0)
-        or np.any(proba > 1)
-        or not np.allclose(proba.sum(axis=1), 1, atol=1e-4)
-    ):
-        raise ValueError("Model returned invalid class probabilities")
     pred = proba.argmax(axis=1)
     majority = max(float(np.mean(y_true == 0)), float(np.mean(y_true == 1)))
     matrix = confusion_matrix(y_true, pred, labels=[0, 1])
@@ -88,6 +80,29 @@ def evaluate_probabilities(
         "confusion_matrix": matrix.tolist(),
         "collapsed": bool(np.unique(pred).size < 2),
     }
+
+
+def normalize_probabilities(probabilities: np.ndarray) -> np.ndarray:
+    """Validate and normalize a binary probability matrix.
+
+    Some estimators, including TabICL, return float32 rows with harmless
+    rounding drift. Accepted rows are divided by their sums so strict sklearn
+    probability checks and persisted artifacts receive an exact distribution.
+    Materially malformed rows remain errors rather than being silently fixed.
+    """
+    proba = np.asarray(probabilities, dtype=np.float64)
+    if proba.ndim != 2 or proba.shape[1] != 2:
+        raise ValueError(f"Expected (n, 2) probabilities, got {proba.shape}")
+    row_sums = proba.sum(axis=1)
+    if (
+        not np.all(np.isfinite(proba))
+        or np.any(proba < 0)
+        or np.any(proba > 1)
+        or np.any(row_sums <= 0)
+        or not np.allclose(row_sums, 1, atol=1e-4, rtol=1e-5)
+    ):
+        raise ValueError("Model returned invalid class probabilities")
+    return proba / row_sums[:, None]
 
 
 def save_evaluation_artifacts(
