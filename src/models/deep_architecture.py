@@ -81,7 +81,9 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
 
         torch.manual_seed(self.random_state)
         np.random.seed(self.random_state)
-        torch.backends.cudnn.benchmark = self.architecture == "fft_lstm"
+        # Keep cuDNN algorithm selection reproducible across every architecture.
+        # Benchmark mode can choose faster kernels nondeterministically.
+        torch.backends.cudnn.benchmark = False
         self.classes_ = np.unique(y)
         if not np.array_equal(self.classes_, np.array([0, 1])):
             raise ValueError(
@@ -142,13 +144,7 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             optimizer, mode="min", factor=0.5, patience=5
         )
         loss_fn = nn.CrossEntropyLoss()
-        batch_size = self.batch_size
-        if self.architecture == "ft_transformer":
-            batch_size = min(batch_size, 32)
-        elif self.architecture == "fft_lstm":
-            # Keep the published architecture but make the training loop less
-            # memory-hungry so the first epoch starts making visible progress.
-            batch_size = min(batch_size, 16)
+        batch_size = self._effective_batch_size()
         loader = DataLoader(
             TensorDataset(torch.from_numpy(X), torch.from_numpy(y_tr)),
             batch_size=batch_size,
@@ -157,10 +153,16 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             pin_memory=use_cuda,
             generator=torch.Generator().manual_seed(self.random_state),
         )
-        x_val = torch.from_numpy(x_va).to(self.device_)
-        y_val = torch.from_numpy(y_va).to(self.device_)
+        validation_loader = DataLoader(
+            TensorDataset(torch.from_numpy(x_va), torch.from_numpy(y_va)),
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=0,
+            pin_memory=use_cuda,
+        )
         best_loss, best_state, stale = float("inf"), None, 0
         self.history_ = []
+        scaler = torch.cuda.amp.GradScaler(enabled=use_cuda)
         epoch_iter = tqdm(
             range(self.epochs),
             desc=f"{self.architecture}:epochs",
@@ -171,7 +173,6 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             for epoch in epoch_iter:
                 self.model_.train()
                 train_loss = 0.0
-                scaler = torch.cuda.amp.GradScaler(enabled=use_cuda)
                 batch_iter = loader
                 if self.architecture == "fft_lstm":
                     batch_iter = tqdm(
@@ -194,8 +195,14 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
                 if self.architecture == "fft_lstm" and hasattr(batch_iter, "close"):
                     batch_iter.close()
                 self.model_.eval()
+                validation_loss = 0.0
                 with torch.no_grad():
-                    val_loss = float(loss_fn(self.model_(x_val), y_val))
+                    for xb, yb in validation_loader:
+                        xb = xb.to(self.device_, non_blocking=use_cuda)
+                        yb = yb.to(self.device_, non_blocking=use_cuda)
+                        batch_loss = loss_fn(self.model_(xb), yb)
+                        validation_loss += float(batch_loss) * len(xb)
+                val_loss = validation_loss / len(x_va)
                 scheduler.step(val_loss)
                 if hasattr(epoch_iter, "set_postfix"):
                     epoch_iter.set_postfix(
@@ -226,6 +233,14 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
             raise
         self.model_.load_state_dict(best_state)
 
+    def _effective_batch_size(self) -> int:
+        """Return the architecture-specific memory-safe batch ceiling."""
+        if self.architecture == "ft_transformer":
+            return min(self.batch_size, 32)
+        if self.architecture == "fft_lstm":
+            return min(self.batch_size, 16)
+        return self.batch_size
+
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Return ``[P(Low), P(High)]`` from batched softmax logits."""
         import torch
@@ -236,8 +251,9 @@ class TorchTabularClassifier(BaseEstimator, ClassifierMixin):
         outputs = []
         self.model_.eval()
         with torch.no_grad():
-            for start in range(0, len(values), self.batch_size):
-                batch = torch.from_numpy(values[start : start + self.batch_size]).to(
+            batch_size = self._effective_batch_size()
+            for start in range(0, len(values), batch_size):
+                batch = torch.from_numpy(values[start : start + batch_size]).to(
                     self.device_
                 )
                 outputs.append(torch.softmax(self.model_(batch), dim=1).cpu().numpy())
