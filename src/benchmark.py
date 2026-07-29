@@ -37,7 +37,11 @@ except ImportError:  # pragma: no cover - fallback for minimal environments
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from src import config
-    from src.evaluation import evaluate_probabilities, save_evaluation_artifacts
+    from src.evaluation import (
+        evaluate_probabilities,
+        normalize_probabilities,
+        save_evaluation_artifacts,
+    )
     from src.models import available_models, create_model
     from src.preprocessing import build_dataset, extract_all, load_split
     from src.reporting import write_cross_split_reports, write_reports
@@ -45,7 +49,11 @@ if __package__ in (None, ""):
     from src.workflow import WorkflowTracker, setup_logging
 else:
     from . import config
-    from .evaluation import evaluate_probabilities, save_evaluation_artifacts
+    from .evaluation import (
+        evaluate_probabilities,
+        normalize_probabilities,
+        save_evaluation_artifacts,
+    )
     from .models import available_models, create_model
     from .preprocessing import build_dataset, extract_all, load_split
     from .reporting import write_cross_split_reports, write_reports
@@ -62,6 +70,8 @@ def run_benchmark(
     max_test_samples: int | None = None,
     fail_fast: bool = False,
     tracker: WorkflowTracker | None = None,
+    tabicl_max_train_samples: int | None = config.TABICL_MAX_TRAIN_SAMPLES,
+    tabicl_max_test_samples: int | None = config.TABICL_MAX_TEST_SAMPLES,
 ) -> dict:
     """Train and evaluate each architecture for both affective targets.
 
@@ -83,6 +93,10 @@ def run_benchmark(
     max_train_samples, max_test_samples
         Optional deterministic limits for smoke tests or constrained hardware.
         Sampling preserves the joint Valence/Arousal label distribution.
+    tabicl_max_train_samples, tabicl_max_test_samples
+        TabICL-specific ceilings applied after the global limits. They prevent
+        its in-context output tensors from scaling to hundreds of gigabytes on
+        the full window-level split. Set either to ``None`` to disable it.
     fail_fast
         Re-raise the first training/runtime error. By default, failures are
         recorded and the remaining experiments continue.
@@ -106,7 +120,15 @@ def run_benchmark(
     Xtr, Xte = np.asarray(X_train[train_idx]), np.asarray(X_test[test_idx])
     ytr_all, yte_all = y_train[train_idx], y_test[test_idx]
     selected_meta_test = meta_test[test_idx]
-    run_config = _run_config(split, model_names, seed, len(train_idx), len(test_idx))
+    run_config = _run_config(
+        split,
+        model_names,
+        seed,
+        len(train_idx),
+        len(test_idx),
+        tabicl_max_train_samples,
+        tabicl_max_test_samples,
+    )
     records = []
     if tracker is not None:
         tracker.log(
@@ -130,6 +152,32 @@ def run_benchmark(
             run_dir = output / target / safe_name(model_name)
             record = {"target": target, "model": model_name, "status": "failed"}
             try:
+                model_train_idx, model_test_idx = _model_sample_indices(
+                    model_name,
+                    ytr_all,
+                    yte_all,
+                    seed,
+                    tabicl_max_train_samples,
+                    tabicl_max_test_samples,
+                )
+                model_Xtr = Xtr[model_train_idx]
+                model_ytr = ytr_all[model_train_idx]
+                model_Xte = Xte[model_test_idx]
+                model_yte = yte_all[model_test_idx]
+                model_meta_test = selected_meta_test[model_test_idx]
+                record.update(
+                    n_train_samples=len(model_train_idx),
+                    n_test_samples=len(model_test_idx),
+                    sampling_protocol=(
+                        "tabicl_stratified_cap"
+                        if model_name == "tabicl"
+                        and (
+                            len(model_train_idx) < len(Xtr)
+                            or len(model_test_idx) < len(Xte)
+                        )
+                        else "run_default"
+                    ),
+                )
                 if tracker is not None:
                     tracker.log(
                         logging.INFO,
@@ -137,6 +185,8 @@ def run_benchmark(
                         split=split,
                         target=target,
                         model=model_name,
+                        n_train=len(model_train_idx),
+                        n_test=len(model_test_idx),
                     )
                 if hasattr(iterator, "set_postfix_str"):
                     iterator.set_postfix_str("training", refresh=False)
@@ -144,7 +194,7 @@ def run_benchmark(
                 model, spec = create_model(model_name, seed)
                 record.update(family=spec.family, notes=spec.notes)
                 started = time.perf_counter()
-                model.fit(Xtr, ytr_all[:, target_index])
+                model.fit(model_Xtr, model_ytr[:, target_index])
                 record["train_seconds"] = time.perf_counter() - started
                 if tracker is not None:
                     tracker.log(
@@ -158,7 +208,9 @@ def run_benchmark(
                 if hasattr(iterator, "set_postfix_str"):
                     iterator.set_postfix_str("evaluating", refresh=False)
                 started = time.perf_counter()
-                probabilities = model.predict_proba(Xte)
+                probabilities = normalize_probabilities(
+                    model.predict_proba(model_Xte)
+                )
                 record["inference_seconds"] = time.perf_counter() - started
                 if tracker is not None:
                     tracker.log(
@@ -170,7 +222,7 @@ def run_benchmark(
                         inference_seconds=record["inference_seconds"],
                     )
                 metrics = evaluate_probabilities(
-                    yte_all[:, target_index], probabilities
+                    model_yte[:, target_index], probabilities
                 )
                 record.update(metrics)
                 run_dir.mkdir(parents=True, exist_ok=True)
@@ -184,10 +236,10 @@ def run_benchmark(
                 record["trainable_parameters"] = getattr(model, "n_parameters_", None)
                 save_evaluation_artifacts(
                     run_dir,
-                    yte_all[:, target_index],
+                    model_yte[:, target_index],
                     probabilities,
                     metrics,
-                    metadata=selected_meta_test,
+                    metadata=model_meta_test,
                 )
                 history = getattr(model, "history_", None)
                 if history is not None:
@@ -234,6 +286,30 @@ def run_benchmark(
     return write_reports(output, records, run_config, tracker=tracker)
 
 
+def _model_sample_indices(
+    model_name: str,
+    y_train: np.ndarray,
+    y_test: np.ndarray,
+    seed: int,
+    tabicl_max_train_samples: int | None,
+    tabicl_max_test_samples: int | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return deterministic model-specific row selections.
+
+    Only TabICL receives an additional cap. Separate generators with stable
+    seeds make the subsets identical across Valence and Arousal experiments
+    and independent of model execution order.
+    """
+    if model_name != "tabicl":
+        return np.arange(len(y_train)), np.arange(len(y_test))
+    train_rng = np.random.default_rng(seed + 10_001)
+    test_rng = np.random.default_rng(seed + 20_001)
+    return (
+        _stratified_limit(y_train, tabicl_max_train_samples, train_rng),
+        _stratified_limit(y_test, tabicl_max_test_samples, test_rng),
+    )
+
+
 def _stratified_limit(
     labels: np.ndarray, limit: int | None, rng: np.random.Generator
 ) -> np.ndarray:
@@ -271,7 +347,13 @@ def _stratified_limit(
 
 
 def _run_config(
-    split: str, models: list[str], seed: int, n_train: int, n_test: int
+    split: str,
+    models: list[str],
+    seed: int,
+    n_train: int,
+    n_test: int,
+    tabicl_max_train_samples: int | None,
+    tabicl_max_test_samples: int | None,
 ) -> dict:
     """Build the provenance block embedded in every aggregate report."""
     versions = {"python": platform.python_version(), "numpy": np.__version__}
@@ -295,6 +377,8 @@ def _run_config(
         "seed": seed,
         "n_train": n_train,
         "n_test": n_test,
+        "tabicl_max_train_samples": tabicl_max_train_samples,
+        "tabicl_max_test_samples": tabicl_max_test_samples,
         "features": config.N_FEATURES,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "platform": platform.platform(),
@@ -321,6 +405,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=config.RANDOM_SEED)
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-test-samples", type=int)
+    parser.add_argument(
+        "--tabicl-max-train-samples",
+        type=int,
+        default=config.TABICL_MAX_TRAIN_SAMPLES,
+        help="TabICL-only stratified training cap (default: 10000)",
+    )
+    parser.add_argument(
+        "--tabicl-max-test-samples",
+        type=int,
+        default=config.TABICL_MAX_TEST_SAMPLES,
+        help="TabICL-only stratified test cap (default: 2000)",
+    )
     parser.add_argument(
         "--smoke", action="store_true", help="Use 2,000/1,000 samples and fast models"
     )
@@ -377,14 +473,16 @@ def main(argv: list[str] | None = None) -> int:
         split_output = output / split if args.split == "all" else output
         with tracker.stage("benchmark", split=split, output=str(split_output)):
             summaries[split] = run_benchmark(
-                split,
-                models,
-                split_output,
-                args.seed,
-                args.max_train_samples,
-                args.max_test_samples,
-                args.fail_fast,
+                split=split,
+                model_names=models,
+                output=split_output,
+                seed=args.seed,
+                max_train_samples=args.max_train_samples,
+                max_test_samples=args.max_test_samples,
+                fail_fast=args.fail_fast,
                 tracker=tracker,
+                tabicl_max_train_samples=args.tabicl_max_train_samples,
+                tabicl_max_test_samples=args.tabicl_max_test_samples,
             )
     if args.split == "all":
         with tracker.stage("cross_split_report"):
