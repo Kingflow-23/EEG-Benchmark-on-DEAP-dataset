@@ -182,9 +182,16 @@ NEURAL_WEIGHT_DECAY = 1e-4
 NEURAL_PATIENCE = 7
 NEURAL_VALIDATION_FRACTION = 0.15
 
-# TabICL shares the same GPU/CPU choice across runs so the registry stays
-# deterministic and benchmark reports remain comparable.
+# Prefer CUDA for TabICL when PyTorch detects it; the registry safely falls back
+# to CPU on machines without a compatible GPU/runtime.
 TABICL_USE_CUDA = True
+
+# TabICL's in-context prediction tensors grow impractically large on the full
+# window-level DEAP split (hundreds of thousands of highly overlapping rows).
+# Give it a deterministic, stratified evaluation protocol sized for an 8 GB
+# GPU. Command-line options can override either ceiling when hardware permits.
+TABICL_MAX_TRAIN_SAMPLES = 10_000
+TABICL_MAX_TEST_SAMPLES = 2_000
 
 
 # --------------------------------------------------------------------------- #
