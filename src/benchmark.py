@@ -208,9 +208,7 @@ def run_benchmark(
                 if hasattr(iterator, "set_postfix_str"):
                     iterator.set_postfix_str("evaluating", refresh=False)
                 started = time.perf_counter()
-                probabilities = normalize_probabilities(
-                    model.predict_proba(model_Xte)
-                )
+                probabilities = normalize_probabilities(model.predict_proba(model_Xte))
                 record["inference_seconds"] = time.perf_counter() - started
                 if tracker is not None:
                     tracker.log(

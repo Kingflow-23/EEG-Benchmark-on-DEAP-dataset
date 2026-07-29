@@ -4,7 +4,6 @@ import pytest
 
 from src.models.deep_architecture import TorchTabularClassifier, _make_network
 
-
 torch = pytest.importorskip("torch")
 
 
@@ -36,16 +35,13 @@ def test_neural_models_emit_two_logits(name):
 def test_memory_heavy_architectures_use_safe_batches():
     """Training, validation, and inference share one memory ceiling."""
     assert (
-        TorchTabularClassifier("ft_transformer", batch_size=256)
-        ._effective_batch_size()
+        TorchTabularClassifier("ft_transformer", batch_size=256)._effective_batch_size()
         == 32
     )
     assert (
-        TorchTabularClassifier("fft_lstm", batch_size=256)._effective_batch_size()
-        == 16
+        TorchTabularClassifier("fft_lstm", batch_size=256)._effective_batch_size() == 16
     )
     assert (
-        TorchTabularClassifier("feature_mlp", batch_size=256)
-        ._effective_batch_size()
+        TorchTabularClassifier("feature_mlp", batch_size=256)._effective_batch_size()
         == 256
     )

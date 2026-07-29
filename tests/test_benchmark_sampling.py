@@ -26,9 +26,7 @@ def test_tabicl_sampling_is_capped_stratified_and_deterministic():
 def test_other_models_keep_every_selected_row():
     train = _joint_labels(11)
     test = _joint_labels(7)
-    train_idx, test_idx = _model_sample_indices(
-        "feature_mlp", train, test, 42, 4, 4
-    )
+    train_idx, test_idx = _model_sample_indices("feature_mlp", train, test, 42, 4, 4)
 
     np.testing.assert_array_equal(train_idx, np.arange(len(train)))
     np.testing.assert_array_equal(test_idx, np.arange(len(test)))

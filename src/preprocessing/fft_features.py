@@ -53,7 +53,6 @@ from ..config import (
 )
 from .bandpower import bin_power
 
-
 FEATURE_SCHEMA_VERSION = 1
 
 
