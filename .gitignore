@@ -18,6 +18,11 @@ output/*
 !output/BENCHMARKS
 *.pkl
 *.joblib
+*.pt
+*.npz
+*workflow.json
+*workflow.jsonl
+*workflow.log
 
 # environment
 .env
