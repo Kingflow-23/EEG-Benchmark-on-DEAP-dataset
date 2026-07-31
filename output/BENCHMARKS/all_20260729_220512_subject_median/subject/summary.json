@@ -1,0 +1,618 @@
+{
+  "configuration": {
+    "dataset": "DEAP",
+    "split": "subject",
+    "models": [
+      "logistic_regression",
+      "extra_trees",
+      "xgboost",
+      "feature_mlp",
+      "band_electrode_cnn",
+      "fft_lstm",
+      "ft_transformer",
+      "tabicl"
+    ],
+    "seed": 42,
+    "n_train": 468480,
+    "n_test": 156160,
+    "tabicl_max_train_samples": 10000,
+    "tabicl_max_test_samples": 2000,
+    "features": 160,
+    "created_utc": "2026-07-29T20:05:15.918120+00:00",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "versions": {
+      "python": "3.13.14",
+      "numpy": "2.5.1",
+      "scikit_learn": "1.9.0",
+      "torch": "2.6.0+cu124",
+      "compute_device": "cuda"
+    }
+  },
+  "ranking_metric": [
+    "macro_f1",
+    "roc_auc",
+    "accuracy_lift"
+  ],
+  "best_model": {
+    "Valence": "band_electrode_cnn",
+    "Arousal": "feature_mlp"
+  },
+  "experiments": [
+    {
+      "target": "Valence",
+      "model": "logistic_regression",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "linear",
+      "notes": "",
+      "train_seconds": 13.434086900000693,
+      "inference_seconds": 0.08194250000815373,
+      "accuracy": 0.5356813524590164,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.029431352459016402,
+      "macro_f1": 0.5346425706088902,
+      "f1_low": 0.5566290403453632,
+      "f1_high": 0.5126561008724173,
+      "roc_auc": 0.5401778194611491,
+      "pr_auc": 0.5560607499694439,
+      "brier_score": 0.3288209781812365,
+      "log_loss": 1.1465043128926424,
+      "confusion_matrix": [
+        [
+          45515,
+          31589
+        ],
+        [
+          40919,
+          38137
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 5821,
+      "trainable_parameters": null,
+      "rank": 2
+    },
+    {
+      "target": "Valence",
+      "model": "extra_trees",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "tree",
+      "notes": "",
+      "train_seconds": 84.57107810000889,
+      "inference_seconds": 0.7042765999940457,
+      "accuracy": 0.502375768442623,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": -0.0038742315573769837,
+      "macro_f1": 0.5022058651443853,
+      "f1_low": 0.5114024332736018,
+      "f1_high": 0.4930092970151688,
+      "roc_auc": 0.5134023335541744,
+      "pr_auc": 0.5357066015318741,
+      "brier_score": 0.2520507068249089,
+      "log_loss": 0.6972205059187316,
+      "confusion_matrix": [
+        [
+          40668,
+          36436
+        ],
+        [
+          41273,
+          37783
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 4558833865,
+      "trainable_parameters": null,
+      "rank": 6
+    },
+    {
+      "target": "Valence",
+      "model": "xgboost",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "boosting",
+      "notes": "",
+      "train_seconds": 31.42695980001008,
+      "inference_seconds": 0.21684689998801332,
+      "accuracy": 0.5159003586065574,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.009650358606557385,
+      "macro_f1": 0.5139850974945576,
+      "f1_low": 0.48347533770164736,
+      "f1_high": 0.5444948572874677,
+      "roc_auc": 0.5124517813683778,
+      "pr_auc": 0.520269833984176,
+      "brier_score": 0.29496661850534284,
+      "log_loss": 0.811947745177648,
+      "confusion_matrix": [
+        [
+          35380,
+          41724
+        ],
+        [
+          33873,
+          45183
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 2335174,
+      "trainable_parameters": null,
+      "rank": 4
+    },
+    {
+      "target": "Valence",
+      "model": "feature_mlp",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "feedforward",
+      "notes": "Three-layer MLP over the flat 160-feature vector.",
+      "train_seconds": 643.773076700003,
+      "inference_seconds": 0.5809348000038881,
+      "accuracy": 0.5116995389344262,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.005449538934426235,
+      "macro_f1": 0.5113810288438393,
+      "f1_low": 0.4989058505779606,
+      "f1_high": 0.5238562071097179,
+      "roc_auc": 0.5184636111864187,
+      "pr_auc": 0.528149117661468,
+      "brier_score": 0.3650041327633331,
+      "log_loss": 1.371937110939666,
+      "confusion_matrix": [
+        [
+          37960,
+          39144
+        ],
+        [
+          37109,
+          41947
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 350555,
+      "trainable_parameters": 83394,
+      "rank": 5
+    },
+    {
+      "target": "Valence",
+      "model": "band_electrode_cnn",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "structured_cnn",
+      "notes": "CNN over five band channels and the 32-position electrode axis.",
+      "train_seconds": 551.2223782000074,
+      "inference_seconds": 0.7113895999937085,
+      "accuracy": 0.5574026639344263,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.0511526639344263,
+      "macro_f1": 0.5362674287713134,
+      "f1_low": 0.6352679183949171,
+      "f1_high": 0.4372669391477097,
+      "roc_auc": 0.5776323987633081,
+      "pr_auc": 0.5943601850440251,
+      "brier_score": 0.26802421989232944,
+      "log_loss": 0.7838172097088879,
+      "confusion_matrix": [
+        [
+          60191,
+          16913
+        ],
+        [
+          52203,
+          26853
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 40702,
+      "trainable_parameters": 7042,
+      "rank": 1
+    },
+    {
+      "target": "Valence",
+      "model": "fft_lstm",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "feature_recurrent",
+      "notes": "Published FFT-feature LSTM over the artificial 160-step feature sequence.",
+      "train_seconds": 4834.8397131999955,
+      "inference_seconds": 57.85961839999072,
+      "accuracy": 0.50625,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.0,
+      "macro_f1": 0.3360995850622407,
+      "f1_low": 0.0,
+      "f1_high": 0.6721991701244814,
+      "roc_auc": 0.5,
+      "pr_auc": 0.50625,
+      "brier_score": 0.2499681022485435,
+      "log_loss": 0.693083386746236,
+      "confusion_matrix": [
+        [
+          0,
+          77104
+        ],
+        [
+          0,
+          79056
+        ]
+      ],
+      "collapsed": true,
+      "model_size_bytes": 3169090,
+      "trainable_parameters": 789298,
+      "rank": 8
+    },
+    {
+      "target": "Valence",
+      "model": "ft_transformer",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "tabular_deep",
+      "notes": "Each scalar feature is tokenized independently; no artificial temporal ordering.",
+      "train_seconds": 8218.870119700005,
+      "inference_seconds": 8.02081360000011,
+      "accuracy": 0.502843237704918,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": -0.0034067622950819665,
+      "macro_f1": 0.5011900777883249,
+      "f1_low": 0.47247400964870556,
+      "f1_high": 0.5299061459279443,
+      "roc_auc": 0.498900753536365,
+      "pr_auc": 0.502366424017827,
+      "brier_score": 0.38330748770142814,
+      "log_loss": 1.3118323660898552,
+      "confusion_matrix": [
+        [
+          34767,
+          42337
+        ],
+        [
+          35299,
+          43757
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 62840,
+      "trainable_parameters": 11746,
+      "rank": 7
+    },
+    {
+      "target": "Valence",
+      "model": "tabicl",
+      "status": "ok",
+      "n_train_samples": 10000,
+      "n_test_samples": 2000,
+      "sampling_protocol": "tabicl_stratified_cap",
+      "family": "in_context",
+      "notes": "In-context learner over tabular features using the shared GPU/CPU policy.",
+      "train_seconds": 20.18767050000315,
+      "inference_seconds": 2.0272719000058714,
+      "accuracy": 0.527,
+      "majority_accuracy": 0.506,
+      "accuracy_lift": 0.02100000000000002,
+      "macro_f1": 0.5203209488923775,
+      "f1_low": 0.5769230769230769,
+      "f1_high": 0.463718820861678,
+      "roc_auc": 0.5431332111824103,
+      "pr_auc": 0.5526183319068654,
+      "brier_score": 0.2498766947260973,
+      "log_loss": 0.6929094704449485,
+      "confusion_matrix": [
+        [
+          645,
+          343
+        ],
+        [
+          603,
+          409
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 2243353687,
+      "trainable_parameters": null,
+      "rank": 3
+    },
+    {
+      "target": "Arousal",
+      "model": "logistic_regression",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "linear",
+      "notes": "",
+      "train_seconds": 13.106515499996021,
+      "inference_seconds": 0.06940670000039972,
+      "accuracy": 0.49699667008196724,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": -0.009253329918032738,
+      "macro_f1": 0.47126601366767396,
+      "f1_low": 0.3546269441545957,
+      "f1_high": 0.5879050831807522,
+      "roc_auc": 0.5021201067655663,
+      "pr_auc": 0.5155623096643634,
+      "brier_score": 0.3433689043618501,
+      "log_loss": 1.2050726805509737,
+      "confusion_matrix": [
+        [
+          21581,
+          55523
+        ],
+        [
+          23026,
+          56030
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 5821,
+      "trainable_parameters": null,
+      "rank": 6
+    },
+    {
+      "target": "Arousal",
+      "model": "extra_trees",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "tree",
+      "notes": "",
+      "train_seconds": 86.45606870000483,
+      "inference_seconds": 0.6927365000010468,
+      "accuracy": 0.4986296106557377,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": -0.0076203893442622905,
+      "macro_f1": 0.49802312044992303,
+      "f1_low": 0.48057479500039807,
+      "f1_high": 0.5154714458994479,
+      "roc_auc": 0.496165708504811,
+      "pr_auc": 0.5012323631008068,
+      "brier_score": 0.2531103290072859,
+      "log_loss": 0.6994824786323979,
+      "confusion_matrix": [
+        [
+          36219,
+          40885
+        ],
+        [
+          37409,
+          41647
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 5012805865,
+      "trainable_parameters": null,
+      "rank": 3
+    },
+    {
+      "target": "Arousal",
+      "model": "xgboost",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "boosting",
+      "notes": "",
+      "train_seconds": 33.383175399998436,
+      "inference_seconds": 0.2103032000013627,
+      "accuracy": 0.5022220799180328,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": -0.0040279200819671734,
+      "macro_f1": 0.4938625797183399,
+      "f1_low": 0.4288160128149547,
+      "f1_high": 0.5589091466217252,
+      "roc_auc": 0.49709923666892286,
+      "pr_auc": 0.49423681172345735,
+      "brier_score": 0.2829630721789843,
+      "log_loss": 0.7773454253624431,
+      "confusion_matrix": [
+        [
+          29179,
+          47925
+        ],
+        [
+          29808,
+          49248
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 2354833,
+      "trainable_parameters": null,
+      "rank": 5
+    },
+    {
+      "target": "Arousal",
+      "model": "feature_mlp",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "feedforward",
+      "notes": "Three-layer MLP over the flat 160-feature vector.",
+      "train_seconds": 640.0331688000006,
+      "inference_seconds": 0.6777539000031538,
+      "accuracy": 0.5162781762295082,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.010028176229508245,
+      "macro_f1": 0.5098684617345023,
+      "f1_low": 0.5659184682044386,
+      "f1_high": 0.45381845526456593,
+      "roc_auc": 0.5116962486893748,
+      "pr_auc": 0.5154275367473785,
+      "brier_score": 0.36652959560628307,
+      "log_loss": 2.169285506267524,
+      "confusion_matrix": [
+        [
+          49240,
+          27864
+        ],
+        [
+          47674,
+          31382
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 350555,
+      "trainable_parameters": 83394,
+      "rank": 1
+    },
+    {
+      "target": "Arousal",
+      "model": "band_electrode_cnn",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "structured_cnn",
+      "notes": "CNN over five band channels and the 32-position electrode axis.",
+      "train_seconds": 644.8816076999938,
+      "inference_seconds": 0.6899588999949628,
+      "accuracy": 0.5097272028688524,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.003477202868852447,
+      "macro_f1": 0.5077580058557187,
+      "f1_low": 0.5388919337256154,
+      "f1_high": 0.476624077985822,
+      "roc_auc": 0.5100012455447249,
+      "pr_auc": 0.5109966323043473,
+      "brier_score": 0.28244117553553,
+      "log_loss": 0.876527815376181,
+      "confusion_matrix": [
+        [
+          44738,
+          32366
+        ],
+        [
+          44195,
+          34861
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 40702,
+      "trainable_parameters": 7042,
+      "rank": 2
+    },
+    {
+      "target": "Arousal",
+      "model": "fft_lstm",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "feature_recurrent",
+      "notes": "Published FFT-feature LSTM over the artificial 160-step feature sequence.",
+      "train_seconds": 5257.198646999997,
+      "inference_seconds": 57.64504570000281,
+      "accuracy": 0.50625,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": 0.0,
+      "macro_f1": 0.3360995850622407,
+      "f1_low": 0.0,
+      "f1_high": 0.6721991701244814,
+      "roc_auc": 0.5,
+      "pr_auc": 0.50625,
+      "brier_score": 0.24998923727872682,
+      "log_loss": 0.6931256751756113,
+      "confusion_matrix": [
+        [
+          0,
+          77104
+        ],
+        [
+          0,
+          79056
+        ]
+      ],
+      "collapsed": true,
+      "model_size_bytes": 3169218,
+      "trainable_parameters": 789298,
+      "rank": 8
+    },
+    {
+      "target": "Arousal",
+      "model": "ft_transformer",
+      "status": "ok",
+      "n_train_samples": 468480,
+      "n_test_samples": 156160,
+      "sampling_protocol": "run_default",
+      "family": "tabular_deep",
+      "notes": "Each scalar feature is tokenized independently; no artificial temporal ordering.",
+      "train_seconds": 3252.278281199993,
+      "inference_seconds": 6.799600500002271,
+      "accuracy": 0.49618340163934427,
+      "majority_accuracy": 0.50625,
+      "accuracy_lift": -0.01006659836065571,
+      "macro_f1": 0.49594135365045355,
+      "f1_low": 0.506987003546766,
+      "f1_high": 0.4848957037541411,
+      "roc_auc": 0.5008757439715915,
+      "pr_auc": 0.5187090154158123,
+      "brier_score": 0.33478256395587935,
+      "log_loss": 0.9676405743412395,
+      "confusion_matrix": [
+        [
+          40453,
+          36651
+        ],
+        [
+          42025,
+          37031
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 60792,
+      "trainable_parameters": 11746,
+      "rank": 4
+    },
+    {
+      "target": "Arousal",
+      "model": "tabicl",
+      "status": "ok",
+      "n_train_samples": 10000,
+      "n_test_samples": 2000,
+      "sampling_protocol": "tabicl_stratified_cap",
+      "family": "in_context",
+      "notes": "In-context learner over tabular features using the shared GPU/CPU policy.",
+      "train_seconds": 15.899960800001281,
+      "inference_seconds": 2.1365873999893665,
+      "accuracy": 0.49,
+      "majority_accuracy": 0.5065,
+      "accuracy_lift": -0.01649999999999996,
+      "macro_f1": 0.45882852292020376,
+      "f1_low": 0.5887096774193549,
+      "f1_high": 0.32894736842105265,
+      "roc_auc": 0.4749897732716829,
+      "pr_auc": 0.4894897165338968,
+      "brier_score": 0.2558037795312336,
+      "log_loss": 0.704906219326461,
+      "confusion_matrix": [
+        [
+          730,
+          257
+        ],
+        [
+          763,
+          250
+        ]
+      ],
+      "collapsed": false,
+      "model_size_bytes": 2243353687,
+      "trainable_parameters": null,
+      "rank": 7
+    }
+  ]
+}
