@@ -1,0 +1,23 @@
+{
+  "accuracy": 0.5890625,
+  "majority_accuracy": 0.5890625,
+  "accuracy_lift": 0.0,
+  "macro_f1": 0.37069813176007865,
+  "f1_low": 0.0,
+  "f1_high": 0.7413962635201573,
+  "roc_auc": 0.5,
+  "pr_auc": 0.5890625,
+  "brier_score": 0.24206830747636468,
+  "log_loss": 0.6771988496817692,
+  "confusion_matrix": [
+    [
+      0,
+      64172
+    ],
+    [
+      0,
+      91988
+    ]
+  ],
+  "collapsed": true
+}
