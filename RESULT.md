@@ -1,7 +1,13 @@
 # Benchmark Results
 
-This document summarizes the final DEAP benchmark run stored under
-`output/BENCHMARKS/all_20260729_220512_subject_median/`.
+This document summarizes the benchmark runs stored under:
+
+- `output/BENCHMARKS/all_20260729_151705_fixed/`
+- `output/BENCHMARKS/all_20260729_220512_subject_median/`
+
+The second run is the corrected and preferred final result set. The first run
+is kept as a useful reference point because it reflects the earlier
+`binarisation fixed` benchmark pass before the later `subject median` rerun.
 
 The benchmark compares eight model families on the binary **Valence** and
 **Arousal** tasks using the shared 160-feature EEG representation described in
@@ -25,10 +31,34 @@ final ranking uses `macro_f1` first, then `roc_auc`, then `accuracy_lift`.
 The `repo` split is included only as a reproduction diagnostic. Because its
 windows overlap heavily, it is not treated as a valid generalization estimate.
 
+## 1.1 Why there are two runs
+
+### `binarisation fixed`
+
+The earlier `fixed` run was used to validate that the binary labels and the
+evaluation pipeline were wired correctly after the binarisation logic was
+fixed. It serves as a checkpoint that the benchmark was no longer evaluating
+the wrong target encoding.
+
+This run is useful because it shows the baseline behavior of the full suite
+after the label issue was corrected, but before the later subject-level
+median-based rerun.
+
+### `subject median`
+
+The later `subject median` run is the final run used for the main conclusions
+in this report. It reflects the benchmark after the subject-level aggregation
+choice was updated to use the median-based setting, which is the version you
+want to cite when describing the final experiment.
+
+In practice, this is the run that should be treated as the main benchmark
+result set because it is the latest corrected configuration.
+
 ## 2. Main Results on the Subject Split
 
 The `subject` split is the most deployment-relevant result because it tests
-transfer to unseen participants.
+transfer to unseen participants. The tables below summarize the `subject
+median` run, which is the preferred final configuration.
 
 ### Valence
 
@@ -162,6 +192,22 @@ One important result is that the best model changes with the evaluation split:
 This means the benchmark is sensitive to how the held-out data are defined.
 That is expected for DEAP, where a trial-level label is reused across many
 windows and the split strategy strongly affects the difficulty of the task.
+
+### 4.6 What changed between the two runs
+
+The `fixed` and `subject median` runs tell a consistent story, but the exact
+leaderboard changes because the evaluation configuration changed.
+
+- In the `fixed` run, Valence on the subject split was led by
+  `band_electrode_cnn`, while Arousal was led by `ft_transformer`.
+- In the `subject median` run, Valence on the subject split was led by
+  `band_electrode_cnn`, while Arousal was led by `feature_mlp`.
+
+The most important takeaway is not that the winners shifted slightly, but that
+the corrected binarisation and the updated subject-level summary produced a
+cleaner and more defensible benchmark. The `subject median` run should therefore
+be considered the final result, while the `fixed` run is best interpreted as a
+validation checkpoint.
 
 ## 5. Practical Conclusions
 
